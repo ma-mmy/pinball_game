@@ -39,7 +39,42 @@ class PinballGame {
         this.currentMultiplier = 0; // 锁定倍率 (2, 4, 6, 8, 10)
         this.litSlots = []; // 当前点亮的落点槽位索引
         this.currentSkin = localStorage.getItem('hpb_ball_skin') || 'classic';
+        this.highElasticEnabled = localStorage.getItem('hpb_high_elastic_enabled') !== 'false';
         this.gameState = 'IDLE'; // IDLE, MULTIPLIER_ROLLING, READY_TO_LAUNCH, BALL_IN_PLAY, RESOLVING
+
+        // Fever 狂欢多球
+        this.feverEnergy = Math.min(99.75, parseFloat(localStorage.getItem('hpb_fever_energy') || '0') || 0);
+        this.feverActive = false;
+        this.feverTimeLeft = 0;
+        this.feverDuration = 10;
+        this.feverMultiplier = 10;
+        this.feverLitCount = 6;
+        this.feverSpawnTotal = 0;
+        this.feverSpawned = 0;
+        this.feverSpawnTimer = 0;
+        this.feverSpawnInterval = 0.08;
+        this.feverWinBeads = 0;
+        this.feverScoredCount = 0;
+        this.preFeverLitSlots = [];
+        this.preFeverMultiplier = 0;
+        this.pendingRoundReset = false;
+
+        // 猫咪拉霸：每中奖 10 次触发
+        this.catSlotSymbols = [
+            { id: 'fish', icon: '🐟', name: '小鱼' },
+            { id: 'cat', icon: '🐱', name: '猫咪' },
+            { id: 'yarn', icon: '🧶', name: '毛线' }
+        ];
+        this.slotWinNeed = 10;
+        this.slotWinCount = Math.min(
+            this.slotWinNeed - 1,
+            Math.max(0, parseInt(localStorage.getItem('hpb_slot_win_count') || '0', 10) || 0)
+        );
+        this.pendingCatSlot = false;
+        this.catSlotSpinning = false;
+        this.catSlotTimers = [];
+        this.isFreeLaunch = false;
+        this.freeLaunchBet = 5;
 
         // 物理引擎
         this.physics = new PinballPhysics(this.canvas, this.handlePhysicsEvent.bind(this));
@@ -58,7 +93,10 @@ class PinballGame {
         this.initUI();
         this.initEventListeners();
         this.initGlobalConfigSync();
+        this.syncHighElasticToggle();
         this.updateHUD();
+        this.updateFeverUI();
+        this.updateSlotProgressUI();
 
         // 启动主循环
         this.lastTime = performance.now();
@@ -81,7 +119,10 @@ class PinballGame {
         }
 
         if (this.multiplierBadgeEl) {
-            if (this.currentMultiplier > 0) {
+            if (this.feverActive) {
+                this.multiplierBadgeEl.textContent = `${this.feverMultiplier}×`;
+                this.multiplierBadgeEl.classList.add('active');
+            } else if (this.currentMultiplier > 0) {
                 this.multiplierBadgeEl.textContent = `${this.currentMultiplier}×`;
                 this.multiplierBadgeEl.classList.add('active');
             } else {
@@ -225,12 +266,16 @@ class PinballGame {
     }
 
     insertBalls(requestedCount = 1) {
-        if (this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
+        if (this.isFreeLaunch) {
+            this.setStatus('🎁 免费发射中，直接拉动拉杆！', true);
+            return false;
+        }
+        if (this.feverActive || this.gameState === 'CAT_SLOT' || this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
             return false;
         }
 
         if (this.totalBeads <= 0) {
-            this.setStatus('⚠️ 珠子不足！请点击【免费加珠】输入密码补充', true);
+            this.setStatus('⚠️ 珠子不足！请点击【加珠】输入密码补充', true);
             this.highlightAddBeadsBtn();
             return false;
         }
@@ -266,7 +311,7 @@ class PinballGame {
     onStartBtnClicked() {
         window.soundEngine.playBtnClick();
 
-        if (this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
+        if (this.feverActive || this.gameState === 'CAT_SLOT' || this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
             return;
         }
 
@@ -353,13 +398,17 @@ class PinballGame {
 
         // 应用到物理引擎
         this.physics.setLitSlots(this.litSlots, mult);
-        this.physics.randomizeHighElasticPins(8);
+        this.applyHighElasticPins();
 
         // 将发射弹珠装填至弹簧位
         this.ensureBallStaged();
 
         this.gameState = 'READY_TO_LAUNCH';
-        this.setStatus(`✨ 抽中 ${mult}× 倍率！点亮 ${litCount} 个灯格！发射前可继续追加投珠，或向下拉动拉杆发射！`, true);
+        if (this.isFreeLaunch) {
+            this.setStatus(`🎁 免费 ${mult}× 发射！不扣珠子，点亮 ${litCount} 个灯格，拉动拉杆开打！`, true);
+        } else {
+            this.setStatus(`✨ 抽中 ${mult}× 倍率！点亮 ${litCount} 个灯格！发射前可继续追加投珠，或向下拉动拉杆发射！`, true);
+        }
         this.pulsePlunger();
     }
 
@@ -464,6 +513,18 @@ class PinballGame {
         const btnBackpack = document.getElementById('btn-backpack');
         if (btnBackpack) btnBackpack.addEventListener('click', () => this.openBackpackModal());
 
+        const slotLever = document.getElementById('cat-slot-lever');
+        if (slotLever) {
+            slotLever.addEventListener('click', () => this.spinCatSlot());
+        }
+
+        const highElasticToggle = document.getElementById('toggle-high-elastic');
+        if (highElasticToggle) {
+            highElasticToggle.addEventListener('change', () => {
+                this.setHighElasticEnabled(highElasticToggle.checked);
+            });
+        }
+
         const btnHome = document.getElementById('btn-home');
         if (btnHome) {
             btnHome.addEventListener('click', () => this.toggleFullscreen());
@@ -484,6 +545,14 @@ class PinballGame {
         if (!knob) return;
 
         const onStart = (clientY) => {
+            if (this.feverActive) {
+                this.setStatus('🔥 Fever 狂欢中，弹珠雨进行时！', true);
+                return;
+            }
+            if (this.gameState === 'CAT_SLOT') {
+                this.setStatus('🎰 猫咪拉霸进行中…', true);
+                return;
+            }
             if (this.gameState !== 'READY_TO_LAUNCH') {
                 if (this.currentMultiplier === 0) {
                     this.setStatus('⚠️ 请先投珠 5~99 颗并按【开始】确定倍率后再发射！', true);
@@ -563,6 +632,14 @@ class PinballGame {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && !spacePressed) {
                 if (document.querySelector('.modal.active')) return;
+                if (this.feverActive) {
+                    this.setStatus('🔥 Fever 狂欢中，弹珠雨进行时！', true);
+                    return;
+                }
+                if (this.gameState === 'CAT_SLOT') {
+                    this.setStatus('🎰 猫咪拉霸进行中…', true);
+                    return;
+                }
                 if (this.gameState !== 'READY_TO_LAUNCH') {
                     if (this.currentMultiplier === 0) {
                         this.setStatus('⚠️ 请先投珠 5~99 颗并按【开始】确定倍率后再发射！', true);
@@ -600,9 +677,13 @@ class PinballGame {
     handlePhysicsEvent(type, data) {
         if (type === 'pin_hit') {
             const now = performance.now();
-            if (now - this.lastPinSoundAt > 55) {
+            const soundGap = this.feverActive ? 28 : 55;
+            if (now - this.lastPinSoundAt > soundGap) {
                 this.lastPinSoundAt = now;
                 window.soundEngine.playPinHit(data.pitch);
+            }
+            if (!this.feverActive && !data.isFeverBall) {
+                this.addFeverEnergy(0.25);
             }
         } else if (type === 'plunger_release') {
             window.soundEngine.playSpringRelease(data.power);
@@ -610,6 +691,7 @@ class PinballGame {
             // Keep the playfield status area clear while the marble is moving.
             this.setStatus('');
         } else if (type === 'ball_returned') {
+            if (data.ball && data.ball.isFever) return;
             this.gameState = 'READY_TO_LAUNCH';
             this.setStatus('');
         } else if (type === 'bumper_hit') {
@@ -619,8 +701,13 @@ class PinballGame {
                 window.soundEngine.playPillarHit(data.isLeftBlocker);
             }
         } else if (type === 'slot_score') {
-            this.resolveSlotScore(data.slot);
+            if (data.ball && data.ball.isFever) {
+                this.resolveFeverBallScore(data.slot);
+            } else {
+                this.resolveSlotScore(data.slot);
+            }
         } else if (type === 'ball_lost') {
+            if (data.ball && data.ball.isFever) return;
             this.resolveBallLost();
         }
     }
@@ -640,10 +727,11 @@ class PinballGame {
     // 发射判定：落入亮灯格 vs 未亮灯格
     resolveSlotScore(slot) {
         this.gameState = 'RESOLVING';
+        const scoreMultiplier = this.feverActive ? this.feverMultiplier : this.currentMultiplier;
 
         if (slot.isLit) {
             // 中奖返珠 = 倍率 × 投珠数
-            const winBeads = this.currentMultiplier * this.currentBet;
+            const winBeads = scoreMultiplier * this.currentBet;
 
             // 积分卡奖励：cards = min(floor(倍率 × 投珠 / T), J)
             const wonCards = Math.min(Math.floor(winBeads / this.configT), this.configJ);
@@ -653,46 +741,448 @@ class PinballGame {
             this.totalScore += wonCards;
             this.updateHUD();
 
-            window.soundEngine.playSlotWin(this.currentMultiplier);
+            window.soundEngine.playSlotWin(scoreMultiplier);
             this.triggerScreenShake();
-            this.setStatus(`🎉 中奖！落入亮灯格！返还 ${winBeads} 颗珠子 (${this.currentMultiplier}×${this.currentBet}) + ${wonCards} 张积分卡！`, true);
+            this.registerLitWin();
+            this.setStatus(`🎉 中奖！落入亮灯格！返还 ${winBeads} 颗珠子 (${scoreMultiplier}×${this.currentBet}) + ${wonCards} 张积分卡！`, true);
 
             // 触发托盘成串落球动画
             this.spawnTrayDrops(winBeads);
         } else {
             // 未亮灯格：全损！
             window.soundEngine.playLossSound();
-            const lossMessage = `💔 未中奖！落入未亮灯格，投入的 ${this.currentBet} 颗珠子全损！`;
+            const lossMessage = this.isFreeLaunch
+                ? '🎁 免费发射未中奖，珠子无损失！'
+                : `💔 未中奖！落入未亮灯格，投入的 ${this.currentBet} 颗珠子全损！`;
             this.setStatus(lossMessage, true);
-            // 失败结算无需等待动画，立即允许玩家开始下一局。
-            this.resetRound();
+            this.finishRoundAfterScore(0);
             this.setStatus(lossMessage, true);
             return;
         }
 
-        // 2.6秒后自动重置对局，并将奖励汇入总珠子
-        setTimeout(() => {
-            this.resetRound();
-        }, 2600);
+        this.finishRoundAfterScore(2600);
+    }
+
+    resolveFeverBallScore(slot) {
+        if (!slot.isLit) return;
+        const beads = this.feverMultiplier;
+        this.feverWinBeads += beads;
+        this.feverScoredCount += 1;
+        this.rewardBeads += beads;
+        this.updateHUD();
+        window.soundEngine.playFeverScore();
     }
 
     resolveBallLost() {
         this.gameState = 'RESOLVING';
         window.soundEngine.playLossSound();
         this.setStatus(`弹珠滑出盘面，本局结束。`);
-        this.resetRound();
+        this.finishRoundAfterScore(0);
         this.setStatus(`弹珠滑出盘面，本局结束。`);
     }
 
+    finishRoundAfterScore(delayMs) {
+        if (this.feverActive) {
+            this.pendingRoundReset = true;
+            return;
+        }
+        if (delayMs > 0) {
+            setTimeout(() => {
+                if (!this.feverActive) this.resetRound();
+                else this.pendingRoundReset = true;
+            }, delayMs);
+            return;
+        }
+        this.resetRound();
+    }
+
     resetRound() {
+        if (this.feverActive) {
+            this.pendingRoundReset = true;
+            return;
+        }
         this.collectTrayBeads();
         this.currentBet = 0;
         this.currentMultiplier = 0;
         this.litSlots = [];
+        this.isFreeLaunch = false;
         this.physics.clearLitSlots();
-        this.gameState = 'IDLE';
         this.updateHUD();
+
+        if (this.pendingCatSlot) {
+            this.pendingCatSlot = false;
+            this.startCatSlot();
+            return;
+        }
+
+        this.gameState = 'IDLE';
         this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
+    }
+
+    syncHighElasticToggle() {
+        const toggle = document.getElementById('toggle-high-elastic');
+        const switchEl = document.getElementById('high-elastic-switch');
+        if (toggle) toggle.checked = this.highElasticEnabled;
+        if (switchEl) switchEl.classList.toggle('is-on', this.highElasticEnabled);
+    }
+
+    setHighElasticEnabled(enabled) {
+        this.highElasticEnabled = !!enabled;
+        localStorage.setItem('hpb_high_elastic_enabled', this.highElasticEnabled ? 'true' : 'false');
+        this.syncHighElasticToggle();
+        this.applyHighElasticPins();
+        window.soundEngine.playBtnClick();
+        this.setStatus(this.highElasticEnabled ? '高弹已开启：本局随机 8 颗高弹力钉' : '高弹已关闭', true);
+    }
+
+    applyHighElasticPins() {
+        if (this.highElasticEnabled) {
+            this.physics.randomizeHighElasticPins(8);
+        } else {
+            this.physics.clearHighElasticPins();
+        }
+    }
+
+    registerLitWin() {
+        this.slotWinCount += 1;
+        if (this.slotWinCount >= this.slotWinNeed) {
+            this.slotWinCount = 0;
+            this.pendingCatSlot = true;
+        }
+        localStorage.setItem('hpb_slot_win_count', String(this.slotWinCount));
+        this.updateSlotProgressUI();
+    }
+
+    updateSlotProgressUI() {
+        const fill = document.getElementById('slot-progress-fill');
+        const text = document.getElementById('slot-progress-text');
+        const bar = document.getElementById('slot-progress');
+        if (fill) fill.style.width = `${(this.slotWinCount / this.slotWinNeed) * 100}%`;
+        if (text) text.textContent = `${this.slotWinCount}/${this.slotWinNeed}`;
+        if (bar) bar.classList.toggle('is-hot', this.slotWinCount >= this.slotWinNeed - 1);
+    }
+
+    clearCatSlotTimers() {
+        this.catSlotTimers.forEach((id) => {
+            clearTimeout(id);
+            clearInterval(id);
+        });
+        this.catSlotTimers = [];
+    }
+
+    startCatSlot() {
+        this.gameState = 'CAT_SLOT';
+        this.catSlotSpinning = false;
+        this.clearCatSlotTimers();
+
+        const panel = document.getElementById('dashboard-panel');
+        const result = document.getElementById('cat-slot-result');
+        const lever = document.getElementById('cat-slot-lever');
+        if (panel) panel.classList.add('slot-active');
+        if (result) result.textContent = '中奖满 10 次！5 秒后自动开摇，也可提前拉杆';
+        [0, 1, 2].forEach((i) => {
+            const reel = document.getElementById(`slot-symbol-${i}`);
+            const cell = reel && reel.closest('.cat-slot-reel');
+            if (reel) reel.textContent = this.catSlotSymbols[i].icon;
+            if (cell) cell.classList.remove('spinning', 'stopped', 'jackpot');
+        });
+        if (lever) lever.classList.remove('pulling');
+
+        this.setStatus('🎰 猫咪拉霸启动！三连大奖，两连有奖！', true);
+        window.soundEngine.playSlotFanfare();
+        const auto = setTimeout(() => this.spinCatSlot(), 5000);
+        this.catSlotTimers.push(auto);
+    }
+
+    spinCatSlot() {
+        if (this.gameState !== 'CAT_SLOT' || this.catSlotSpinning) return;
+        this.catSlotSpinning = true;
+        this.clearCatSlotTimers();
+
+        const lever = document.getElementById('cat-slot-lever');
+        const result = document.getElementById('cat-slot-result');
+        if (lever) {
+            lever.classList.remove('pulling');
+            void lever.offsetWidth;
+            lever.classList.add('pulling');
+        }
+        if (result) result.textContent = '滚轮旋转中…';
+        window.soundEngine.playSlotPull();
+
+        const finalSymbols = [0, 1, 2].map(() =>
+            this.catSlotSymbols[Math.floor(Math.random() * this.catSlotSymbols.length)]
+        );
+
+        [0, 1, 2].forEach((reelIndex) => {
+            const symbolEl = document.getElementById(`slot-symbol-${reelIndex}`);
+            const cell = symbolEl && symbolEl.closest('.cat-slot-reel');
+            if (cell) {
+                cell.classList.remove('stopped', 'jackpot');
+                cell.classList.add('spinning');
+            }
+            const tick = setInterval(() => {
+                const rnd = this.catSlotSymbols[Math.floor(Math.random() * this.catSlotSymbols.length)];
+                if (symbolEl) symbolEl.textContent = rnd.icon;
+                if (reelIndex === 0) window.soundEngine.playSlotReelTick();
+            }, 70);
+            this.catSlotTimers.push(tick);
+
+            const stopAt = 720 + reelIndex * 420;
+            const stopTimer = setTimeout(() => {
+                clearInterval(tick);
+                if (symbolEl) symbolEl.textContent = finalSymbols[reelIndex].icon;
+                if (cell) {
+                    cell.classList.remove('spinning');
+                    cell.classList.add('stopped');
+                }
+                window.soundEngine.playSlotReelStop();
+                if (reelIndex === 2) this.resolveCatSlot(finalSymbols);
+            }, stopAt);
+            this.catSlotTimers.push(stopTimer);
+        });
+    }
+
+    resolveCatSlot(symbols) {
+        const counts = {};
+        symbols.forEach((s) => {
+            counts[s.id] = (counts[s.id] || 0) + 1;
+        });
+        let matchId = null;
+        let matchCount = 1;
+        Object.keys(counts).forEach((id) => {
+            if (counts[id] > matchCount) {
+                matchCount = counts[id];
+                matchId = id;
+            }
+        });
+
+        const result = document.getElementById('cat-slot-result');
+        const lever = document.getElementById('cat-slot-lever');
+        if (lever) lever.classList.remove('pulling');
+
+        if (matchCount === 3) {
+            [0, 1, 2].forEach((i) => {
+                const cell = document.getElementById(`slot-symbol-${i}`)?.closest('.cat-slot-reel');
+                if (cell) cell.classList.add('jackpot');
+            });
+            window.soundEngine.playSlotJackpot();
+            this.awardCatSlotPrize(matchId, 3, result);
+        } else if (matchCount === 2) {
+            window.soundEngine.playSlotPairWin();
+            this.awardCatSlotPrize(matchId, 2, result);
+        } else {
+            window.soundEngine.playSlotMiss();
+            if (result) result.textContent = '没中图案，下次再来！';
+            this.setStatus('🎰 拉霸未中，仪表板恢复。', true);
+            const done = setTimeout(() => this.closeCatSlot(), 1600);
+            this.catSlotTimers.push(done);
+        }
+    }
+
+    awardCatSlotPrize(symbolId, matchCount, resultEl) {
+        const isTriple = matchCount === 3;
+        let message = '';
+
+        if (symbolId === 'fish') {
+            const beads = isTriple ? 20 : 10;
+            this.rewardBeads += beads;
+            this.updateHUD();
+            this.spawnTrayDrops(beads);
+            message = `${isTriple ? '三连' : '两连'} 🐟！额外 ${beads} 颗珠子！`;
+            if (resultEl) resultEl.textContent = message;
+            this.setStatus(`🎰 ${message}`, true);
+            const done = setTimeout(() => this.closeCatSlot(), 2200);
+            this.catSlotTimers.push(done);
+            return;
+        }
+
+        if (symbolId === 'cat') {
+            const cards = isTriple ? 2 : 1;
+            this.rewardScore += cards;
+            this.totalScore += cards;
+            this.updateHUD();
+            message = `${isTriple ? '三连' : '两连'} 🐱！额外 ${cards} 张积分卡！`;
+            if (resultEl) resultEl.textContent = message;
+            this.setStatus(`🎰 ${message}`, true);
+            const done = setTimeout(() => this.closeCatSlot(), 2200);
+            this.catSlotTimers.push(done);
+            return;
+        }
+
+        const launchMult = isTriple ? 10 : 2;
+        message = `${isTriple ? '三连' : '两连'} 🧶！送一次免费 ${launchMult}× 发射！`;
+        if (resultEl) resultEl.textContent = message;
+        this.setStatus(`🎰 ${message}`, true);
+        const done = setTimeout(() => {
+            this.closeCatSlot();
+            this.grantFreeLaunch(launchMult);
+        }, 1600);
+        this.catSlotTimers.push(done);
+    }
+
+    closeCatSlot() {
+        this.clearCatSlotTimers();
+        this.catSlotSpinning = false;
+        const panel = document.getElementById('dashboard-panel');
+        if (panel) panel.classList.remove('slot-active');
+        if (this.gameState === 'CAT_SLOT') {
+            this.gameState = 'IDLE';
+            this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
+        }
+        this.updateSlotProgressUI();
+    }
+
+    grantFreeLaunch(mult) {
+        this.isFreeLaunch = true;
+        this.currentBet = this.freeLaunchBet;
+        this.lockMultiplier(mult);
+        this.updateHUD();
+        this.setStatus(`🎁 免费 ${mult}× 发射已就绪！不扣珠子，拉动拉杆开打！`, true);
+    }
+
+    addFeverEnergy(amount) {
+        if (this.feverActive) return;
+        this.feverEnergy = Math.min(100, this.feverEnergy + amount);
+        localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
+        this.updateFeverUI();
+        if (this.feverEnergy >= 100) this.startFever();
+    }
+
+    updateFeverUI() {
+        const gauge = document.getElementById('fever-gauge');
+        const fill = document.getElementById('fever-gauge-fill');
+        const pct = document.getElementById('fever-gauge-pct');
+        const tag = document.getElementById('fever-gauge-tag');
+        if (!gauge || !fill || !pct) return;
+
+        gauge.classList.toggle('is-active', this.feverActive);
+        gauge.classList.toggle('is-hot', !this.feverActive && this.feverEnergy >= 80);
+
+        if (this.feverActive) {
+            const remain = Math.max(0, this.feverTimeLeft);
+            fill.style.width = `${(remain / this.feverDuration) * 100}%`;
+            pct.textContent = `${remain.toFixed(1)}s`;
+            if (tag) tag.textContent = 'FEVER';
+        } else {
+            fill.style.width = `${this.feverEnergy}%`;
+            pct.textContent = `${this.feverEnergy.toFixed(1)}%`;
+            if (tag) tag.textContent = 'FEVER';
+        }
+    }
+
+    startFever() {
+        if (this.feverActive) return;
+        this.feverActive = true;
+        this.feverEnergy = 0;
+        localStorage.setItem('hpb_fever_energy', '0');
+        this.feverTimeLeft = this.feverDuration;
+        this.feverSpawnTotal = 10 + Math.floor(Math.random() * 6);
+        this.feverSpawned = 0;
+        this.feverSpawnTimer = this.feverSpawnInterval;
+        this.feverWinBeads = 0;
+        this.feverScoredCount = 0;
+        this.preFeverLitSlots = [...this.litSlots];
+        this.preFeverMultiplier = this.currentMultiplier;
+
+        const indices = this.physics.slots.map(slot => slot.index);
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        const feverLit = indices.slice(0, Math.min(this.feverLitCount, indices.length));
+        this.physics.setLitSlots(feverLit, this.feverMultiplier);
+        this.physics.feverActive = true;
+
+        const playfield = document.getElementById('playfield-container');
+        const overlay = document.getElementById('fever-overlay');
+        const cabinet = document.querySelector('.arcade-cabinet');
+        if (playfield) playfield.classList.add('fever-mode');
+        if (overlay) overlay.classList.add('active');
+        if (cabinet) cabinet.classList.add('fever-mode');
+
+        if (this.multiplierBadgeEl) {
+            this.multiplierBadgeEl.textContent = `${this.feverMultiplier}×`;
+            this.multiplierBadgeEl.classList.add('active', 'rolling');
+        }
+
+        for (let i = 0; i < 9; i++) {
+            this.physics.createSparks(28 + i * 36, 42, 10, i % 2 === 0 ? '#ffeb3b' : '#ff1744');
+        }
+        window.soundEngine.playFeverStart();
+        window.soundEngine.startFeverLoop();
+        this.triggerScreenShake();
+        this.setStatus(`🔥 FEVER 狂欢！随机 ${feverLit.length} 孔 ${this.feverMultiplier}× 亮灯，弹珠雨 ${this.feverSpawnTotal} 颗！`, true);
+        this.updateFeverUI();
+    }
+
+    updateFever(dt) {
+        if (!this.feverActive) return;
+
+        this.feverTimeLeft -= dt;
+        if (this.feverSpawned < this.feverSpawnTotal) {
+            this.feverSpawnTimer += dt;
+            let spawnedThisFrame = 0;
+            while (
+                this.feverSpawnTimer >= this.feverSpawnInterval &&
+                this.feverSpawned < this.feverSpawnTotal &&
+                spawnedThisFrame < 2
+            ) {
+                this.feverSpawnTimer -= this.feverSpawnInterval;
+                this.physics.spawnFeverBall(this.currentSkin);
+                this.feverSpawned += 1;
+                spawnedThisFrame += 1;
+                window.soundEngine.playFeverDrop();
+            }
+        }
+
+        this.updateFeverUI();
+
+        const overtime = this.feverTimeLeft <= -4;
+        const timeUp = this.feverTimeLeft <= 0;
+        if (timeUp && (!this.physics.hasFeverBalls() || overtime)) {
+            this.endFever();
+        }
+    }
+
+    endFever() {
+        if (!this.feverActive) return;
+        this.feverActive = false;
+        this.physics.feverActive = false;
+        this.physics.removeFeverBalls();
+        window.soundEngine.stopFeverLoop();
+        window.soundEngine.playFeverEnd();
+
+        const playfield = document.getElementById('playfield-container');
+        const overlay = document.getElementById('fever-overlay');
+        const cabinet = document.querySelector('.arcade-cabinet');
+        if (playfield) playfield.classList.remove('fever-mode');
+        if (overlay) overlay.classList.remove('active');
+        if (cabinet) cabinet.classList.remove('fever-mode');
+        if (this.multiplierBadgeEl) this.multiplierBadgeEl.classList.remove('rolling');
+
+        if (this.gameState === 'READY_TO_LAUNCH' || this.gameState === 'BALL_IN_PLAY') {
+            this.physics.setLitSlots(this.preFeverLitSlots, this.preFeverMultiplier || this.currentMultiplier);
+            this.litSlots = [...this.preFeverLitSlots];
+        } else if (!this.pendingRoundReset) {
+            this.physics.clearLitSlots();
+        }
+
+        const beads = this.feverWinBeads;
+        this.updateHUD();
+        if (beads > 0) this.spawnTrayDrops(beads);
+
+        this.setStatus(
+            `Fever 结束！${this.feverScoredCount} 颗狂欢珠入孔，奖励 ${beads} 珠（不计积分卡）！`,
+            true
+        );
+        this.updateFeverUI();
+
+        if (this.pendingRoundReset) {
+            this.pendingRoundReset = false;
+            setTimeout(() => this.resetRound(), 900);
+        } else {
+            this.updateHUD();
+        }
     }
 
     spawnTrayDrops(count) {
@@ -969,6 +1459,19 @@ class PinballGame {
             this.currentBet = 0;
             this.currentMultiplier = 0;
             this.physics.clearLitSlots();
+            if (this.feverActive) {
+                this.pendingRoundReset = false;
+                this.endFever();
+            }
+            this.feverEnergy = 0;
+            localStorage.setItem('hpb_fever_energy', '0');
+            this.updateFeverUI();
+            this.slotWinCount = 0;
+            this.pendingCatSlot = false;
+            this.isFreeLaunch = false;
+            localStorage.setItem('hpb_slot_win_count', '0');
+            this.closeCatSlot();
+            this.updateSlotProgressUI();
             this.updateHUD();
             this.closeModal('setting-modal');
             this.setStatus('当前机器的弹珠和积分已重置为 0');
@@ -979,6 +1482,7 @@ class PinballGame {
         const dt = (currentTime - this.lastTime) / 1000;
         this.lastTime = currentTime;
 
+        this.updateFever(dt);
         this.physics.update(dt);
         this.physics.render();
 

@@ -18,8 +18,8 @@
     <!-- 主机机身外壳 -->
     <main class="arcade-cabinet">
         <!-- 1. 顶部亚克力数码仪表板 (默认数据全为 0) -->
-        <header class="dashboard-panel">
-            <div class="scoreboard-grid">
+        <header class="dashboard-panel" id="dashboard-panel">
+            <div class="scoreboard-grid" id="scoreboard-grid">
                 <div class="score-box">
                     <span class="score-label">总积分</span>
                     <div class="led-display" id="disp-total-score">0</div>
@@ -38,20 +38,58 @@
                 </div>
             </div>
 
+            <div class="cat-slot-machine" id="cat-slot-machine" aria-hidden="true">
+                <div class="cat-slot-top">
+                    <span class="cat-slot-title">🐱 猫咪拉霸</span>
+                    <span class="cat-slot-pay">三连大奖 · 两连有奖</span>
+                </div>
+                <div class="cat-slot-body">
+                    <div class="cat-slot-reels">
+                        <div class="cat-slot-reel">
+                            <div class="cat-slot-glass"><span class="cat-slot-symbol" id="slot-symbol-0">🐟</span></div>
+                        </div>
+                        <div class="cat-slot-reel">
+                            <div class="cat-slot-glass"><span class="cat-slot-symbol" id="slot-symbol-1">🐱</span></div>
+                        </div>
+                        <div class="cat-slot-reel">
+                            <div class="cat-slot-glass"><span class="cat-slot-symbol" id="slot-symbol-2">🧶</span></div>
+                        </div>
+                    </div>
+                    <button type="button" class="cat-slot-lever" id="cat-slot-lever" title="拉一下">
+                        <span class="lever-knob"></span>
+                        <span class="lever-stem"></span>
+                    </button>
+                </div>
+                <div class="cat-slot-result" id="cat-slot-result">中奖满 10 次，拉霸启动！</div>
+            </div>
+
+            <div class="slot-progress" id="slot-progress" title="每中奖 10 次触发猫咪拉霸">
+                <span class="slot-progress-label">🎰 拉霸</span>
+                <div class="slot-progress-track">
+                    <div class="slot-progress-fill" id="slot-progress-fill"></div>
+                </div>
+                <span class="slot-progress-text" id="slot-progress-text">0/10</span>
+            </div>
+
             <div class="dash-actions-row">
                 <!-- 装饰投币孔 -->
                 <div class="coin-slot-bar"></div>
 
                 <!-- 导航与管理入口 -->
                 <div class="sub-btn-group">
+                    <label class="high-elastic-switch" id="high-elastic-switch" title="开关高弹力钉">
+                        <span class="switch-label">高弹</span>
+                        <input type="checkbox" id="toggle-high-elastic" checked>
+                        <span class="switch-track" aria-hidden="true"></span>
+                    </label>
                     <button class="icon-sub-btn" id="btn-home" title="全屏游玩">
                         <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                         <span>全屏</span>
                     </button>
                     <!-- 免费加珠 (密码 ma123456) -->
-                    <button class="icon-sub-btn highlight-btn" id="btn-free-beads" title="免费加珠 (密码验证)">
+                    <button class="icon-sub-btn highlight-btn" id="btn-free-beads" title="加珠 (密码验证)">
                         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                        <span>免费加珠</span>
+                        <span>加珠</span>
                     </button>
                     <button class="icon-sub-btn" id="btn-shake-machine" title="摇一摇机器">
                         <svg viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V19H7v2h10v-2h-4v-3.1a5.01 5.01 0 0 0 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
@@ -66,7 +104,22 @@
         </header>
 
         <!-- 2. 玻罩核心游玩区 (12落点槽位 + 物理高尔顿板) -->
-        <section class="playfield-container">
+        <section class="playfield-container" id="playfield-container">
+            <!-- Fever 能量槽 -->
+            <div class="fever-gauge" id="fever-gauge" title="撞击金属钉蓄积能量，满 100% 触发 Fever 狂欢">
+                <span class="fever-gauge-tag" id="fever-gauge-tag">FEVER</span>
+                <div class="fever-gauge-track">
+                    <div class="fever-gauge-fill" id="fever-gauge-fill"></div>
+                </div>
+                <span class="fever-gauge-pct" id="fever-gauge-pct">0%</span>
+            </div>
+
+            <!-- Fever 狂欢覆盖层 -->
+            <div class="fever-overlay" id="fever-overlay" aria-hidden="true">
+                <div class="fever-banner">FEVER</div>
+                <div class="fever-sub">狂欢多球 · 随机六孔高倍</div>
+            </div>
+
             <!-- 状态信息栏 -->
             <div class="playfield-status-header">
                 <span id="status-bar-text">等待开始 (请投入 5~99 颗弹珠开局)</span>

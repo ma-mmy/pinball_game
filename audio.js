@@ -6,6 +6,7 @@ class SoundEngine {
     constructor() {
         this.ctx = null;
         this.enabled = true;
+        this.feverBoost = false;
         this.initOnInteraction = this.initOnInteraction.bind(this);
         window.addEventListener('click', this.initOnInteraction, { once: true });
         window.addEventListener('touchstart', this.initOnInteraction, { once: true });
@@ -43,10 +44,11 @@ class SoundEngine {
         overtone.type = 'triangle';
         overtone.frequency.setValueAtTime(baseFreq * 2.76, now);
 
-        gain.gain.setValueAtTime(0.18, now);
+        const volumeScale = this.feverBoost ? 1.45 : 1;
+        gain.gain.setValueAtTime(0.18 * volumeScale, now);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
-        overGain.gain.setValueAtTime(0.08, now);
+        overGain.gain.setValueAtTime(0.08 * volumeScale, now);
         overGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
 
         osc.connect(gain);
@@ -292,6 +294,270 @@ class SoundEngine {
         gain.connect(this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.05);
+    }
+
+    playFeverStart() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const fanfare = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+        fanfare.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = idx % 2 === 0 ? 'triangle' : 'square';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.055);
+            gain.gain.setValueAtTime(0.22, now + idx * 0.055);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.055 + 0.32);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.055);
+            osc.stop(now + idx * 0.055 + 0.36);
+        });
+
+        const boom = this.ctx.createOscillator();
+        const boomGain = this.ctx.createGain();
+        boom.type = 'sine';
+        boom.frequency.setValueAtTime(90, now);
+        boom.frequency.exponentialRampToValueAtTime(28, now + 0.4);
+        boomGain.gain.setValueAtTime(0.4, now);
+        boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+        boom.connect(boomGain);
+        boomGain.connect(this.ctx.destination);
+        boom.start(now);
+        boom.stop(now + 0.45);
+    }
+
+    startFeverLoop() {
+        this.stopFeverLoop();
+        if (!this.enabled) return;
+        this.init();
+        this.feverBoost = true;
+
+        const drone = this.ctx.createOscillator();
+        const droneGain = this.ctx.createGain();
+        drone.type = 'sawtooth';
+        drone.frequency.setValueAtTime(52, this.ctx.currentTime);
+        droneGain.gain.setValueAtTime(0.045, this.ctx.currentTime);
+        drone.connect(droneGain);
+        droneGain.connect(this.ctx.destination);
+        drone.start();
+        this._feverDrone = drone;
+        this._feverDroneGain = droneGain;
+
+        this._feverLoopTimer = setInterval(() => this.playFeverPulse(), 180);
+    }
+
+    playFeverPulse() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const chord = [523.25, 659.25, 783.99, 987.77];
+        const freq = chord[Math.floor(Math.random() * chord.length)];
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.12);
+        gain.gain.setValueAtTime(0.09, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+    }
+
+    playFeverDrop() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(980 + Math.random() * 220, now);
+        osc.frequency.exponentialRampToValueAtTime(240, now + 0.09);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+    }
+
+    playFeverScore() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1320, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.08);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.14);
+    }
+
+    playFeverEnd() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const notes = [1046.50, 783.99, 659.25, 523.25];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.16, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.25);
+        });
+    }
+
+    stopFeverLoop() {
+        this.feverBoost = false;
+        if (this._feverLoopTimer) {
+            clearInterval(this._feverLoopTimer);
+            this._feverLoopTimer = null;
+        }
+        if (this._feverDrone) {
+            try {
+                const now = this.ctx ? this.ctx.currentTime : 0;
+                if (this._feverDroneGain && this.ctx) {
+                    this._feverDroneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                }
+                this._feverDrone.stop(now + 0.14);
+            } catch (e) {
+                // Already stopped.
+            }
+            this._feverDrone = null;
+            this._feverDroneGain = null;
+        }
+    }
+
+    playSlotFanfare() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        [392.00, 523.25, 659.25, 783.99].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+            gain.gain.setValueAtTime(0.16, now + idx * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.06);
+            osc.stop(now + idx * 0.06 + 0.25);
+        });
+    }
+
+    playSlotPull() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.16);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    }
+
+    playSlotReelTick() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(620 + Math.random() * 80, now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.035);
+    }
+
+    playSlotReelStop() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    }
+
+    playSlotJackpot() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.18, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.3);
+        });
+    }
+
+    playSlotPairWin() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        [659.25, 880.00].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+            gain.gain.setValueAtTime(0.16, now + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.08);
+            osc.stop(now + idx * 0.08 + 0.22);
+        });
+    }
+
+    playSlotMiss() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(240, now);
+        osc.frequency.linearRampToValueAtTime(140, now + 0.22);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
     }
 }
 

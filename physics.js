@@ -37,6 +37,7 @@ class PinballPhysics {
         // 亮灯与倍率状态
         this.currentMultiplier = 0;
         this.pulseTime = 0;
+        this.feverActive = false;
 
         // 弹簧拉杆
         this.plunger = {
@@ -221,7 +222,7 @@ class PinballPhysics {
     }
 
     randomizeHighElasticPins(count = 8) {
-        this.pins.forEach(pin => { pin.highElastic = false; });
+        this.clearHighElasticPins();
         const shuffled = [...this.pins];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -232,6 +233,11 @@ class PinballPhysics {
         });
     }
 
+    clearHighElasticPins() {
+        this.pins.forEach(pin => { pin.highElastic = false; });
+        this.bumpers.forEach(bumper => { bumper.highElastic = false; });
+    }
+
     // 清除亮灯
     clearLitSlots() {
         this.currentMultiplier = 0;
@@ -240,6 +246,34 @@ class PinballPhysics {
             slot.multiplier = 0;
             slot.flashTimer = 0;
         });
+    }
+
+    spawnFeverBall(skin = 'classic') {
+        const minX = 36;
+        const maxX = 332;
+        const ball = {
+            id: 'fever_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+            x: minX + Math.random() * (maxX - minX),
+            y: 30 + Math.random() * 14,
+            vx: (Math.random() - 0.5) * 160,
+            vy: 80 + Math.random() * 180,
+            radius: 8,
+            mass: 1.15,
+            skin,
+            state: 'in_play',
+            isFever: true
+        };
+        this.balls.push(ball);
+        this.createSparks(ball.x, ball.y, 12, '#ffeb3b');
+        return ball;
+    }
+
+    hasFeverBalls() {
+        return this.balls.some(ball => ball.isFever && ball.state !== 'scored');
+    }
+
+    removeFeverBalls() {
+        this.balls = this.balls.filter(ball => !ball.isFever);
     }
 
     // 装填待发弹珠
@@ -286,14 +320,16 @@ class PinballPhysics {
     // Dislodge a marble that is moving through the playfield without
     // returning it to the plunger or changing its launch state.
     shakeActiveBall() {
-        const activeBall = this.balls.find(ball =>
+        const activeBalls = this.balls.filter(ball =>
             ball.state === 'launched' || ball.state === 'in_play'
         );
-        if (!activeBall) return false;
+        if (!activeBalls.length) return false;
 
-        const direction = Math.random() < 0.5 ? -1 : 1;
-        activeBall.vx += direction * 260;
-        activeBall.vy += 120;
+        activeBalls.forEach((ball) => {
+            const direction = Math.random() < 0.5 ? -1 : 1;
+            ball.vx += direction * 260;
+            ball.vy += 120;
+        });
         return true;
     }
 
@@ -344,6 +380,11 @@ class PinballPhysics {
             // it cannot roll underneath or get stranded in the chute.
             if ((ball.state === 'launched' || ball.state === 'in_play') &&
                 ball.x > 344 && ball.y >= 448 && ball.vy >= 0) {
+                if (ball.isFever) {
+                    this.balls.splice(i, 1);
+                    this.onEvent('fever_ball_done', { ball });
+                    continue;
+                }
                 ball.state = 'ready';
                 ball.x = 372;
                 ball.y = this.plunger.y - ball.radius;
@@ -426,9 +467,19 @@ class PinballPhysics {
                             ball.vy *= scale;
                         }
 
-                        pin.flashTimer = 0.12;
-                        this.createSparks(pin.x, pin.y, 3);
-                        this.onEvent('pin_hit', { pitch: pin.pitch, x: pin.x, y: pin.y });
+                        pin.flashTimer = this.feverActive ? 0.22 : 0.12;
+                        this.createSparks(
+                            pin.x,
+                            pin.y,
+                            this.feverActive ? 8 : 3,
+                            this.feverActive ? '#ffeb3b' : '#ffeb3b'
+                        );
+                        this.onEvent('pin_hit', {
+                            pitch: pin.pitch,
+                            x: pin.x,
+                            y: pin.y,
+                            isFeverBall: !!ball.isFever
+                        });
                     }
                 }
             }
@@ -573,6 +624,12 @@ class PinballPhysics {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.width, this.height);
 
+        if (this.feverActive) {
+            const wash = 0.07 + (Math.sin(this.pulseTime * 10) * 0.5 + 0.5) * 0.07;
+            ctx.fillStyle = `rgba(255, 40, 70, ${wash})`;
+            ctx.fillRect(0, 0, this.width, this.height);
+        }
+
         // 1. 发射滑道与外壁轨道
         ctx.save();
         ctx.strokeStyle = '#d7cfc1';
@@ -662,9 +719,12 @@ class PinballPhysics {
 
             if (s.isLit) {
                 // 亮灯格：犹如真机红色发光光圈与红球发光指示
-                ctx.fillStyle = s.flashTimer > 0 ? '#ffffff' : '#ff1744';
-                ctx.shadowColor = '#ff1744';
-                ctx.shadowBlur = s.flashTimer > 0 ? 18 : (8 + pulse * 8);
+                const feverHue = (this.pulseTime * 220 + s.index * 36) % 360;
+                ctx.fillStyle = s.flashTimer > 0
+                    ? '#ffffff'
+                    : (this.feverActive ? `hsl(${feverHue}, 100%, 54%)` : '#ff1744');
+                ctx.shadowColor = this.feverActive ? `hsl(${feverHue}, 100%, 50%)` : '#ff1744';
+                ctx.shadowBlur = s.flashTimer > 0 ? 18 : (8 + pulse * (this.feverActive ? 14 : 8));
                 ctx.fill();
 
                 // 外发光环
@@ -766,6 +826,10 @@ class PinballPhysics {
 
     renderBall(ctx, ball) {
         ctx.save();
+        if (ball.isFever) {
+            ctx.shadowColor = '#ffeb3b';
+            ctx.shadowBlur = 14;
+        }
         ctx.beginPath();
         ctx.arc(ball.x + 2, ball.y + 3, ball.radius, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
