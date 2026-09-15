@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>开心弹珠机 (Happy Pachinko Arcade) V3.0</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -86,7 +86,7 @@
                         <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                         <span>全屏</span>
                     </button>
-                    <!-- 免费加珠 (密码 ma123456) -->
+                    <!-- 免费加珠 (管理密码来自全部机器配置) -->
                     <button class="icon-sub-btn highlight-btn" id="btn-free-beads" title="加珠 (密码验证)">
                         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
                         <span>加珠</span>
@@ -158,10 +158,6 @@
                     <span id="loaded-ball-count">0</span>
                     <span style="font-size:11px; color:#8d7f70; font-weight:700;">/99</span>
                 </div>
-                <div class="bet-quick-actions" aria-label="快捷投珠">
-                    <button type="button" class="bet-quick-btn" data-insert-count="5" title="一次投入 5 颗弹珠">+5</button>
-                    <button type="button" class="bet-quick-btn" data-insert-count="10" title="一次投入 10 颗弹珠">+10</button>
-                </div>
                 <button class="btn-backpack" id="btn-backpack">
                     <span>🎒</span>
                     <span>我的背包</span>
@@ -170,17 +166,23 @@
 
             <!-- 白色【投珠】与红色【开始】猫爪按键 (投珠支持单点+长按) -->
             <div class="paw-button-container">
-                <button class="paw-btn white-paw" id="btn-insert-ball" title="点击+1，按住连续高速投珠">
-                    <div class="paw-pads-row">
-                        <div class="paw-pad"></div>
-                        <div class="paw-pad"></div>
-                        <div class="paw-pad"></div>
-                        <div class="paw-pad"></div>
+                <div class="paw-insert-cluster">
+                    <button type="button" class="paw-btn white-paw" id="btn-insert-ball" title="点击+1，按住连续高速投珠">
+                        <div class="paw-pads-row">
+                            <div class="paw-pad"></div>
+                            <div class="paw-pad"></div>
+                            <div class="paw-pad"></div>
+                            <div class="paw-pad"></div>
+                        </div>
+                        <span>投珠</span>
+                    </button>
+                    <div class="bet-quick-actions" aria-label="快捷投珠">
+                        <button type="button" class="bet-quick-btn" data-insert-count="5" title="一次投入 5 颗弹珠">+5</button>
+                        <button type="button" class="bet-quick-btn" data-insert-count="10" title="一次投入 10 颗弹珠">+10</button>
                     </div>
-                    <span>投珠</span>
-                </button>
+                </div>
 
-                <button class="paw-btn red-paw" id="btn-start-game" title="满5珠按此抽取倍率开局">
+                <button type="button" class="paw-btn red-paw" id="btn-start-game" title="满5珠按此抽取倍率开局">
                     <div class="paw-pads-row">
                         <div class="paw-pad"></div>
                         <div class="paw-pad"></div>
@@ -223,7 +225,7 @@
 
 <!-- ================= 模态弹窗系统 ================= -->
 
-<!-- 1. 免费加珠 (密码：ma123456) -->
+<!-- 1. 免费加珠 (管理密码来自全部机器配置) -->
 <div class="modal" id="add-beads-modal">
     <div class="modal-card">
         <div class="modal-header">
@@ -355,6 +357,15 @@
                     <label style="font-size:11px; text-align:center; font-weight:800;">8×<input type="number" id="prob-mult-8" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
                     <label style="font-size:11px; text-align:center; font-weight:800;">10×<input type="number" id="prob-mult-10" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
                 </div>
+            </div>
+
+            <div style="background:#f4eee1; padding:8px 10px; border-radius:10px;">
+                <div style="font-size:12px; font-weight:800; color:#4a4136; margin-bottom:6px;">修改管理密码（留空则不修改）</div>
+                <div class="settings-value-grid">
+                    <label>新密码<input type="password" id="config-new-password" autocomplete="new-password" maxlength="64" placeholder="留空不修改"></label>
+                    <label>确认密码<input type="password" id="config-confirm-password" autocomplete="new-password" maxlength="64" placeholder="再次输入"></label>
+                </div>
+                <div style="font-size:10px; color:#8c8273; margin-top:4px;">密码明文保存在全部机器配置中，保存后同步到所有已打开的机器</div>
             </div>
 
             <div class="settings-section-heading local-settings-heading">

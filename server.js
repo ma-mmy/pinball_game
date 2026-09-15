@@ -6,11 +6,13 @@ const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 8066);
 const ROOT = __dirname;
 const CONFIG_FILE = path.join(ROOT, 'global-config.json');
+const DEFAULT_PASSWORD = 'ma123456';
 const DEFAULT_CONFIG = {
     soundEnabled: true,
     configT: 20,
     configJ: 10,
-    multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7]
+    multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7],
+    password: DEFAULT_PASSWORD
 };
 
 const MIME_TYPES = {
@@ -20,6 +22,10 @@ const MIME_TYPES = {
     '.json': 'application/json; charset=utf-8'
 };
 
+function isValidPassword(password) {
+    return typeof password === 'string' && password.length > 0 && password.length <= 64;
+}
+
 function isValidConfig(config) {
     if (!config || typeof config.soundEnabled !== 'boolean' ||
         !Number.isInteger(config.configT) || config.configT <= 0 ||
@@ -27,17 +33,31 @@ function isValidConfig(config) {
         !Array.isArray(config.multiplierProbabilities) || config.multiplierProbabilities.length !== 5) {
         return false;
     }
+    if (config.password !== undefined && !isValidPassword(config.password)) {
+        return false;
+    }
     const probabilities = config.multiplierProbabilities.map(Number);
     const total = probabilities.reduce((sum, value) => sum + value, 0);
     return probabilities.every(value => Number.isFinite(value) && value >= 0) && Math.abs(total - 100) <= 0.01;
 }
 
+function normalizeConfig(config, fallbackPassword = DEFAULT_PASSWORD) {
+    if (!isValidConfig(config)) return { ...DEFAULT_CONFIG };
+    return {
+        soundEnabled: config.soundEnabled,
+        configT: config.configT,
+        configJ: config.configJ,
+        multiplierProbabilities: config.multiplierProbabilities.map(Number),
+        password: isValidPassword(config.password) ? config.password : fallbackPassword
+    };
+}
+
 function readConfig() {
     try {
         const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        return isValidConfig(config) ? config : DEFAULT_CONFIG;
+        return normalizeConfig(config);
     } catch (error) {
-        return DEFAULT_CONFIG;
+        return { ...DEFAULT_CONFIG };
     }
 }
 
@@ -57,11 +77,13 @@ function handleConfigUpdate(request, response) {
     });
     request.on('end', () => {
         try {
-            const config = JSON.parse(body);
-            if (!isValidConfig(config)) {
+            const incoming = JSON.parse(body);
+            if (!isValidConfig(incoming)) {
                 sendJson(response, 400, { error: 'Invalid global config' });
                 return;
             }
+            const current = readConfig();
+            const config = normalizeConfig(incoming, current.password);
             fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
             sendJson(response, 200, config);
         } catch (error) {

@@ -1,6 +1,6 @@
 /**
  * HappyPinballGame - 主游戏控制与业务逻辑 V3.0
- * 1. 免费加珠：输入密码 ma123456 后设定添加珠子数量
+ * 1. 免费加珠：输入管理密码后设定添加珠子数量（密码可在设置中修改）
  * 2. 5~99 投珠开局，按开始确定倍率 (2×/4×/6×/8×/10×)，按倍率点亮 12 落点对应灯格
  * 3. 亮灯后发射前可追加投珠 (上限 99)
  * 4. 中奖返珠 = 倍率 × 投珠，积分卡 = min(floor(返珠 / T), J)
@@ -137,17 +137,26 @@ class PinballGame {
         localStorage.setItem('hpb_total_beads_v3', this.totalBeads);
     }
 
-    loadGlobalConfig() {
-        const defaults = {
+    getDefaultGlobalConfig() {
+        return {
             soundEnabled: true,
             configT: 20,
             configJ: 10,
-            multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7]
+            multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7],
+            password: 'ma123456'
         };
+    }
+
+    isValidAdminPassword(password) {
+        return typeof password === 'string' && password.length > 0 && password.length <= 64;
+    }
+
+    loadGlobalConfig() {
+        const defaults = this.getDefaultGlobalConfig();
 
         try {
             const saved = JSON.parse(localStorage.getItem(this.globalConfigStorageKey) || 'null');
-            if (this.isValidGlobalConfig(saved)) return saved;
+            if (this.isValidGlobalConfig(saved)) return this.normalizeGlobalConfig(saved, defaults.password);
 
             // Migrate settings saved by earlier versions into the shared config.
             const oldProbabilities = JSON.parse(localStorage.getItem('hpb_multiplier_probabilities') || 'null');
@@ -158,7 +167,7 @@ class PinballGame {
                 multiplierProbabilities: Array.isArray(oldProbabilities)
                     ? oldProbabilities.map(Number) : defaults.multiplierProbabilities
             };
-            return this.isValidGlobalConfig(migrated) ? migrated : defaults;
+            return this.isValidGlobalConfig(migrated) ? this.normalizeGlobalConfig(migrated, defaults.password) : defaults;
         } catch (e) {
             return defaults;
         }
@@ -171,17 +180,33 @@ class PinballGame {
             !Array.isArray(config.multiplierProbabilities) || config.multiplierProbabilities.length !== 5) {
             return false;
         }
+        if (config.password !== undefined && !this.isValidAdminPassword(config.password)) {
+            return false;
+        }
         const probabilities = config.multiplierProbabilities.map(Number);
         const total = probabilities.reduce((sum, value) => sum + value, 0);
         return probabilities.every(value => Number.isFinite(value) && value >= 0) && Math.abs(total - 100) <= 0.01;
     }
 
+    normalizeGlobalConfig(config, fallbackPassword = 'ma123456') {
+        if (!this.isValidGlobalConfig(config)) return this.getDefaultGlobalConfig();
+        return {
+            soundEnabled: config.soundEnabled,
+            configT: config.configT,
+            configJ: config.configJ,
+            multiplierProbabilities: config.multiplierProbabilities.map(Number),
+            password: this.isValidAdminPassword(config.password) ? config.password : fallbackPassword
+        };
+    }
+
     applyGlobalConfig(config, notify = false) {
         if (!this.isValidGlobalConfig(config)) return false;
-        this.configT = config.configT;
-        this.configJ = config.configJ;
-        this.multiplierProbabilities = config.multiplierProbabilities.map(Number);
-        if (window.soundEngine) window.soundEngine.enabled = config.soundEnabled;
+        const normalized = this.normalizeGlobalConfig(config, this.adminPassword || 'ma123456');
+        this.configT = normalized.configT;
+        this.configJ = normalized.configJ;
+        this.multiplierProbabilities = normalized.multiplierProbabilities;
+        this.adminPassword = normalized.password;
+        if (window.soundEngine) window.soundEngine.enabled = normalized.soundEnabled;
 
         if (notify) {
             this.populateGlobalSettingsFields();
@@ -195,7 +220,8 @@ class PinballGame {
             soundEnabled: !!(window.soundEngine && window.soundEngine.enabled),
             configT: this.configT,
             configJ: this.configJ,
-            multiplierProbabilities: [...this.multiplierProbabilities]
+            multiplierProbabilities: [...this.multiplierProbabilities],
+            password: this.adminPassword || 'ma123456'
         };
     }
 
@@ -445,12 +471,17 @@ class PinballGame {
     }
 
     playInsertEffect() {
-        if (!this.coinSlot) return;
-        this.coinSlot.classList.remove('coin-slot-active');
-        // Restart the short animation for rapid clicks/long presses.
-        void this.coinSlot.offsetWidth;
-        this.coinSlot.classList.add('coin-slot-active');
-        setTimeout(() => this.coinSlot && this.coinSlot.classList.remove('coin-slot-active'), 360);
+        const slot = this.coinSlot;
+        if (!slot) return;
+        // Avoid forced reflow (offsetWidth) and CSS filter — both flash the
+        // playfield canvas on mobile as if the pins were being rebuilt.
+        if (slot.classList.contains('coin-slot-active')) return;
+        const onEnd = () => {
+            slot.classList.remove('coin-slot-active');
+            slot.removeEventListener('animationend', onEnd);
+        };
+        slot.addEventListener('animationend', onEnd);
+        slot.classList.add('coin-slot-active');
     }
 
     // 事件绑定
@@ -461,6 +492,7 @@ class PinballGame {
             const startHold = (e) => {
                 e.preventDefault();
                 this.insertSingleBall();
+                if (typeof btnInsert.blur === 'function') btnInsert.blur();
                 clearTimeout(this.insertHoldTimer);
                 clearInterval(this.insertHoldInterval);
 
@@ -474,24 +506,41 @@ class PinballGame {
                 }, 260);
             };
 
-            const endHold = () => {
+            const endHold = (e) => {
+                if (e) e.preventDefault();
                 clearTimeout(this.insertHoldTimer);
                 clearInterval(this.insertHoldInterval);
+                if (typeof btnInsert.blur === 'function') btnInsert.blur();
             };
 
             btnInsert.addEventListener('mousedown', startHold);
             btnInsert.addEventListener('mouseup', endHold);
             btnInsert.addEventListener('mouseleave', endHold);
+            btnInsert.addEventListener('click', (e) => e.preventDefault());
 
             btnInsert.addEventListener('touchstart', startHold, { passive: false });
-            btnInsert.addEventListener('touchend', endHold);
-            btnInsert.addEventListener('touchcancel', endHold);
+            btnInsert.addEventListener('touchend', endHold, { passive: false });
+            btnInsert.addEventListener('touchcancel', endHold, { passive: false });
         }
 
         document.querySelectorAll('.bet-quick-btn').forEach((button) => {
-            button.addEventListener('click', () => {
+            let lastTouchAt = 0;
+            const insertQuick = () => {
                 const count = parseInt(button.dataset.insertCount, 10);
                 this.insertBalls(count);
+                if (typeof button.blur === 'function') button.blur();
+            };
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                lastTouchAt = performance.now();
+                insertQuick();
+            }, { passive: false });
+            button.addEventListener('click', (e) => {
+                if (performance.now() - lastTouchAt < 500) {
+                    e.preventDefault();
+                    return;
+                }
+                insertQuick();
             });
         });
 
@@ -500,7 +549,7 @@ class PinballGame {
             btnStart.addEventListener('click', () => this.onStartBtnClicked());
         }
 
-        // 免费加珠 (密码 ma123456)
+        // 免费加珠 (管理密码来自全部机器配置)
         const btnFree = document.getElementById('btn-free-beads');
         if (btnFree) {
             btnFree.addEventListener('click', () => this.openAddBeadsModal());
@@ -1239,7 +1288,7 @@ class PinballGame {
     }
 
     // ==========================================
-    // 免费加珠模块 (密码：ma123456)
+    // 免费加珠模块 (管理密码来自全部机器配置)
     // ==========================================
     openAddBeadsModal() {
         window.soundEngine.playBtnClick();
@@ -1268,7 +1317,7 @@ class PinballGame {
         const step2 = document.getElementById('add-beads-step2');
         const amountInput = document.getElementById('add-beads-amount');
 
-        if (pwdInput.value === 'ma123456') {
+        if (pwdInput.value === this.adminPassword) {
             errorMsg.style.display = 'none';
             step1.style.display = 'none';
             step2.style.display = 'block';
@@ -1330,7 +1379,7 @@ class PinballGame {
     verifySettingsPassword() {
         const input = document.getElementById('settings-pwd');
         const error = document.getElementById('settings-pwd-error');
-        if (input && input.value === 'ma123456') {
+        if (input && input.value === this.adminPassword) {
             this.closeModal('settings-password-modal');
             this.openSettingsModal();
         } else if (error) {
@@ -1364,6 +1413,10 @@ class PinballGame {
         this.populateGlobalSettingsFields();
         if (inputBeads) inputBeads.value = this.totalBeads;
         if (inputScore) inputScore.value = this.totalScore;
+        const newPasswordInput = document.getElementById('config-new-password');
+        const confirmPasswordInput = document.getElementById('config-confirm-password');
+        if (newPasswordInput) newPasswordInput.value = '';
+        if (confirmPasswordInput) confirmPasswordInput.value = '';
 
         modal.classList.add('active');
     }
@@ -1374,6 +1427,8 @@ class PinballGame {
         const soundToggle = document.getElementById('toggle-sound');
         const inputBeads = document.getElementById('config-total-beads');
         const inputScore = document.getElementById('config-total-score');
+        const newPasswordInput = document.getElementById('config-new-password');
+        const confirmPasswordInput = document.getElementById('config-confirm-password');
         const probabilityInputs = [2, 4, 6, 8, 10].map(m => document.getElementById(`prob-mult-${m}`));
 
         const nextT = inputT ? parseInt(inputT.value, 10) : this.configT;
@@ -1392,11 +1447,26 @@ class PinballGame {
             alert(`倍率概率总和必须为 100%，当前为 ${Number.isFinite(probabilityTotal) ? probabilityTotal.toFixed(1) : '无效'}%。`);
             return;
         }
+
+        const nextPassword = newPasswordInput ? newPasswordInput.value : '';
+        const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
+        if (nextPassword || confirmPassword) {
+            if (nextPassword !== confirmPassword) {
+                alert('两次输入的管理密码不一致。');
+                return;
+            }
+            if (!this.isValidAdminPassword(nextPassword)) {
+                alert('管理密码不能为空，且不超过 64 个字符。');
+                return;
+            }
+        }
+
         this.configT = nextT;
         this.configJ = nextJ;
         this.totalBeads = nextBeads;
         this.totalScore = nextScore;
         this.multiplierProbabilities = nextProbabilities;
+        if (nextPassword) this.adminPassword = nextPassword;
         window.soundEngine.enabled = soundToggle ? soundToggle.checked : window.soundEngine.enabled;
         const syncedToServer = await this.saveGlobalConfig(this.getGlobalConfig());
 
@@ -1405,7 +1475,8 @@ class PinballGame {
         const syncMessage = syncedToServer
             ? '全部机器配置已同步'
             : '配置已保存；使用共享服务启动后可同步到不同机器';
-        this.setStatus(`${syncMessage} (T=${this.configT}, J=${this.configJ})；弹珠和积分仅更新当前机器`, true);
+        const passwordMessage = nextPassword ? '；管理密码已更新' : '';
+        this.setStatus(`${syncMessage} (T=${this.configT}, J=${this.configJ})${passwordMessage}；弹珠和积分仅更新当前机器`, true);
     }
 
     toggleFullscreen() {
