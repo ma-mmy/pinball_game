@@ -1,0 +1,12 @@
+{
+  "soundEnabled": true,
+  "configT": 21,
+  "configJ": 10,
+  "multiplierProbabilities": [
+    42,
+    28.8,
+    12.7,
+    10.8,
+    5.7
+  ]
+}

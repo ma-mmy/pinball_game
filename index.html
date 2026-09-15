@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>开心弹珠机 (Happy Pachinko Arcade) V3.0</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="arcade-wrapper">
+    <!-- 顶部半透明立体猫耳造型 -->
+    <div class="cat-ears-container">
+        <div class="cat-ear left"></div>
+        <div class="cat-ear right"></div>
+    </div>
+
+    <!-- 主机机身外壳 -->
+    <main class="arcade-cabinet">
+        <!-- 1. 顶部亚克力数码仪表板 (默认数据全为 0) -->
+        <header class="dashboard-panel">
+            <div class="scoreboard-grid">
+                <div class="score-box">
+                    <span class="score-label">总积分</span>
+                    <div class="led-display" id="disp-total-score">0</div>
+                </div>
+                <div class="score-box">
+                    <span class="score-label">总珠子</span>
+                    <div class="led-display" id="disp-total-beads">0</div>
+                </div>
+                <div class="score-box">
+                    <span class="score-label">奖励珠子</span>
+                    <div class="led-display" id="disp-reward-beads">0</div>
+                </div>
+                <div class="score-box">
+                    <span class="score-label">奖励积分</span>
+                    <div class="led-display" id="disp-reward-score">0</div>
+                </div>
+            </div>
+
+            <div class="dash-actions-row">
+                <!-- 装饰投币孔 -->
+                <div class="coin-slot-bar"></div>
+
+                <!-- 导航与管理入口 -->
+                <div class="sub-btn-group">
+                    <button class="icon-sub-btn" id="btn-home" title="全屏游玩">
+                        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                        <span>全屏</span>
+                    </button>
+                    <!-- 免费加珠 (密码 ma123456) -->
+                    <button class="icon-sub-btn highlight-btn" id="btn-free-beads" title="免费加珠 (密码验证)">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        <span>免费加珠</span>
+                    </button>
+                    <button class="icon-sub-btn" id="btn-shake-machine" title="摇一摇机器">
+                        <svg viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V19H7v2h10v-2h-4v-3.1a5.01 5.01 0 0 0 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+                        <span>摇一摇</span>
+                    </button>
+                    <button class="icon-sub-btn" id="btn-settings" title="机台设置">
+                        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                        <span>设置</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 2. 玻罩核心游玩区 (12落点槽位 + 物理高尔顿板) -->
+        <section class="playfield-container">
+            <!-- 状态信息栏 -->
+            <div class="playfield-status-header">
+                <span id="status-bar-text">等待开始 (请投入 5~99 颗弹珠开局)</span>
+            </div>
+
+            <!-- 盘面中央猫咪 LOGO 艺术字水印 -->
+            <div class="playfield-watermark-logo">
+                <div class="logo-row-1">
+                    <span>开</span><span>心</span>
+                    <span class="paw-icon-small">🐾</span>
+                </div>
+                <div class="logo-row-2">
+                    <span>弹珠机</span>
+                </div>
+            </div>
+
+            <!-- 物理渲染 Canvas (400 x 570) -->
+            <canvas id="playfield-canvas" width="400" height="570"></canvas>
+
+            <!-- 弧面玻璃反光视效 -->
+            <div class="glass-reflection"></div>
+        </section>
+
+        <!-- 3. 下方控制台操作区 (Control Deck) -->
+        <section class="control-deck">
+            <!-- 左侧倍率指示器 (2×/4×/6×/8×/10×) -->
+            <div class="multiplier-display-unit" title="当前局倍率">
+                <span class="unit-mini-label">倍率</span>
+                <div class="multiplier-badge" id="multiplier-badge">--</div>
+            </div>
+
+            <!-- 投珠数量指示 & 我的背包入口 -->
+            <div class="backpack-unit">
+                <div class="loaded-indicator" title="当前已投珠数 (5~99)">
+                    <div class="mini-pearl-icon"></div>
+                    <span id="loaded-ball-count">0</span>
+                    <span style="font-size:11px; color:#8d7f70; font-weight:700;">/99</span>
+                </div>
+                <div class="bet-quick-actions" aria-label="快捷投珠">
+                    <button type="button" class="bet-quick-btn" data-insert-count="5" title="一次投入 5 颗弹珠">+5</button>
+                    <button type="button" class="bet-quick-btn" data-insert-count="10" title="一次投入 10 颗弹珠">+10</button>
+                </div>
+                <button class="btn-backpack" id="btn-backpack">
+                    <span>🎒</span>
+                    <span>我的背包</span>
+                </button>
+            </div>
+
+            <!-- 白色【投珠】与红色【开始】猫爪按键 (投珠支持单点+长按) -->
+            <div class="paw-button-container">
+                <button class="paw-btn white-paw" id="btn-insert-ball" title="点击+1，按住连续高速投珠">
+                    <div class="paw-pads-row">
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                    </div>
+                    <span>投珠</span>
+                </button>
+
+                <button class="paw-btn red-paw" id="btn-start-game" title="满5珠按此抽取倍率开局">
+                    <div class="paw-pads-row">
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                    </div>
+                    <span>开始</span>
+                </button>
+            </div>
+
+            <!-- 右侧物理弹簧蓄力拉杆 (Plunger) -->
+            <div class="plunger-deck-unit">
+                <div class="plunger-guide-slot">
+                    <svg class="plunger-spring-svg" id="plunger-spring-visual" viewBox="0 0 10 30">
+                        <path d="M5,0 Q0,5 5,8 Q10,11 5,14 Q0,17 5,20 Q10,23 5,26 L5,30"/>
+                    </svg>
+                    <div class="plunger-knob" id="plunger-knob" title="向下拉动蓄力发射！">
+                        <span class="knob-paw-relief">🐾</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. 底部物理出球收纳猫脸托盘 & 浮雕 -->
+        <section class="bottom-dispenser-section">
+            <div class="hopper-unit">
+                <div class="hopper-exit-chute"></div>
+                <div class="cat-tray" id="cat-tray" title="点击可快速收纳奖励珠子">
+                    <span class="tray-hint-text">中奖出球盒</span>
+                </div>
+            </div>
+
+            <div class="cabinet-embossed-paws">
+                <div class="embossed-paw-big">🐾</div>
+                <div class="embossed-paw-small">🐾</div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- ================= 模态弹窗系统 ================= -->
+
+<!-- 1. 免费加珠 (密码：ma123456) -->
+<div class="modal" id="add-beads-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">🪙 免费添加弹珠</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('add-beads-modal')">&times;</button>
+        </div>
+
+        <!-- Step 1: 密码验证 -->
+        <div id="add-beads-step1">
+            <p style="font-size:13px; color:#6d6458; margin-bottom:12px; font-weight:700;">
+                请输入管理员密码验证：
+            </p>
+            <input type="password" id="add-beads-pwd" class="text-input-field" placeholder="请输入密码" />
+            <div id="add-beads-error" class="error-tip" style="display:none;"></div>
+            <button class="btn-primary-action" style="margin-top:14px;" onclick="window.game.verifyPasswordAndNext()">
+                验证密码
+            </button>
+        </div>
+
+        <!-- Step 2: 设定添加珠子数量 -->
+        <div id="add-beads-step2" style="display:none;">
+            <p style="font-size:13px; color:#2e7d32; font-weight:800; margin-bottom:10px;">
+                ✅ 密码验证成功！请输入添加珠子数量：
+            </p>
+            <input type="number" id="add-beads-amount" class="text-input-field" value="100" min="1" max="99999" />
+            
+            <div class="quick-add-group">
+                <button type="button" class="quick-add-btn" onclick="window.game.setQuickAddAmount(50)">+50</button>
+                <button type="button" class="quick-add-btn" onclick="window.game.setQuickAddAmount(100)">+100</button>
+                <button type="button" class="quick-add-btn" onclick="window.game.setQuickAddAmount(500)">+500</button>
+                <button type="button" class="quick-add-btn" onclick="window.game.setQuickAddAmount(1000)">+1000</button>
+            </div>
+
+            <button class="btn-primary-action" style="margin-top:14px;" onclick="window.game.confirmAddBeads()">
+                确定保存添加
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 2. 排行榜弹窗 -->
+<div class="modal" id="rank-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">🏆 积分卡风云榜</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('rank-modal')">&times;</button>
+        </div>
+        <ul class="rank-list">
+            <li class="rank-item">
+                <span>🥇 1. 喵星弹珠王</span>
+                <span style="color:#d32f2f;">280 张卡</span>
+            </li>
+            <li class="rank-item">
+                <span>🥈 2. 招财猫本猫</span>
+                <span style="color:#f57c00;">190 张卡</span>
+            </li>
+            <li class="rank-item">
+                <span>🥉 3. 欧皇三花</span>
+                <span style="color:#388e3c;">120 张卡</span>
+            </li>
+            <li class="rank-item my-rank">
+                <span>⭐ 4. 我 (当前总积分)</span>
+                <span id="my-rank-score" style="color:#d32f2f;">0 张卡</span>
+            </li>
+            <li class="rank-item">
+                <span>🐱 5. 橘猫不吃鱼</span>
+                <span style="color:#616161;">60 张卡</span>
+            </li>
+        </ul>
+        <button class="btn-primary-action" onclick="window.game.closeModal('rank-modal')">关闭榜单</button>
+    </div>
+</div>
+
+<!-- 设置密码验证 -->
+<div class="modal" id="settings-password-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">🔒 设置权限验证</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('settings-password-modal')">&times;</button>
+        </div>
+        <p style="font-size:13px; color:#6d6458; margin-bottom:12px; font-weight:700;">请输入管理员密码：</p>
+        <input type="password" id="settings-pwd" class="text-input-field" placeholder="请输入密码" onkeydown="if(event.key==='Enter') window.game.verifySettingsPassword()" />
+        <div id="settings-pwd-error" class="error-tip" style="display:none;"></div>
+        <button class="btn-primary-action" style="margin-top:14px;" onclick="window.game.verifySettingsPassword()">验证密码</button>
+    </div>
+</div>
+
+<!-- 3. 设置弹窗 (全局规则 + 当前机器数据) -->
+<div class="modal" id="setting-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">⚙️ 机台规则与设置</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('setting-modal')">&times;</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;">
+            <div class="settings-section-heading">
+                <strong>全部机器配置</strong>
+                <span>保存后同步到所有已打开的机器</span>
+            </div>
+            <label style="display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:13px;">
+                <span>🔊 音效开关</span>
+                <input type="checkbox" id="toggle-sound" checked style="width:18px; height:18px;">
+            </label>
+
+            <!-- 参数 T 配置 -->
+            <div style="background:#f4eee1; padding:8px 10px; border-radius:10px;">
+                <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:800; color:#4a4136;">
+                    <span>参数 T (每多少返珠获1积分卡):</span>
+                    <input type="number" id="config-param-t" value="20" min="1" max="1000" style="width:70px; padding:4px; font-weight:800; text-align:center; border-radius:6px; border:1px solid #ccc;">
+                </label>
+                <div style="font-size:10px; color:#8c8273; margin-top:2px;">公式: floor(返珠 / T)</div>
+            </div>
+
+            <!-- 参数 J 配置 -->
+            <div style="background:#f4eee1; padding:8px 10px; border-radius:10px;">
+                <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:800; color:#4a4136;">
+                    <span>参数 J (单次出积分卡上限):</span>
+                    <input type="number" id="config-param-j" value="10" min="1" max="1000" style="width:70px; padding:4px; font-weight:800; text-align:center; border-radius:6px; border:1px solid #ccc;">
+                </label>
+                <div style="font-size:10px; color:#8c8273; margin-top:2px;">公式: min(cards, J)</div>
+            </div>
+
+            <div style="background:#f4eee1; padding:8px 10px; border-radius:10px;">
+                <div style="font-size:12px; font-weight:800; color:#4a4136; margin-bottom:6px;">倍率出现概率（总和必须为 100%）</div>
+                <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:5px;">
+                    <label style="font-size:11px; text-align:center; font-weight:800;">2×<input type="number" id="prob-mult-2" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
+                    <label style="font-size:11px; text-align:center; font-weight:800;">4×<input type="number" id="prob-mult-4" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
+                    <label style="font-size:11px; text-align:center; font-weight:800;">6×<input type="number" id="prob-mult-6" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
+                    <label style="font-size:11px; text-align:center; font-weight:800;">8×<input type="number" id="prob-mult-8" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
+                    <label style="font-size:11px; text-align:center; font-weight:800;">10×<input type="number" id="prob-mult-10" min="0" max="100" step="0.1" style="width:100%; padding:4px 1px; text-align:center; border-radius:6px; border:1px solid #ccc;"></label>
+                </div>
+            </div>
+
+            <div class="settings-section-heading local-settings-heading">
+                <strong>当前机器数据</strong>
+                <span>不会影响其他机器</span>
+            </div>
+
+            <!-- 当前机器库存与积分 -->
+            <div class="settings-value-grid">
+                <label>弹珠数量<input type="number" id="config-total-beads" min="0" max="999999999"></label>
+                <label>积分数量<input type="number" id="config-total-score" min="0" max="999999999"></label>
+            </div>
+        </div>
+
+        <button class="btn-primary-action" style="margin-bottom:10px;" onclick="window.game.saveSettings()">保存并同步设置</button>
+        <button style="width:100%; padding:9px; background:#fff; border:1.5px solid #d32f2f; color:#d32f2f; border-radius:10px; font-weight:800; cursor:pointer;" onclick="window.game.resetData()">重置当前机器数据为 0</button>
+    </div>
+</div>
+
+<!-- 4. 我的背包 (皮肤定制) -->
+<div class="modal" id="backpack-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">🎒 我的弹珠背包</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('backpack-modal')">&times;</button>
+        </div>
+        <div class="skins-grid">
+            <div class="skin-card" onclick="window.game.setSkin('classic')">
+                <div class="skin-ball-preview classic"></div>
+                <div class="skin-name">经典钢珠</div>
+            </div>
+            <div class="skin-card" onclick="window.game.setSkin('gold')">
+                <div class="skin-ball-preview gold"></div>
+                <div class="skin-name">黄金猫爪珠</div>
+            </div>
+            <div class="skin-card" onclick="window.game.setSkin('neon')">
+                <div class="skin-ball-preview neon"></div>
+                <div class="skin-name">霓虹水晶珠</div>
+            </div>
+        </div>
+        <p style="font-size:11px; color:#887d70; text-align:center; margin-bottom:14px;">点击任意弹珠即可切换材质外观！</p>
+        <button class="btn-primary-action" onclick="window.game.closeModal('backpack-modal')">确定</button>
+    </div>
+</div>
+
+<!-- 脚本引用 -->
+<script src="audio.js"></script>
+<script src="physics.js"></script>
+<script src="game.js"></script>
+
+</body>
+</html>

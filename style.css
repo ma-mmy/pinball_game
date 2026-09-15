@@ -1,0 +1,1100 @@
+/* ===================================================================
+   开心弹珠机 (Happy Pachinko Arcade) - Retro Toy Aesthetic CSS
+   =================================================================== */
+
+:root {
+    --cabinet-cream: #f4f0e6;
+    --cabinet-border: #ded7c6;
+    --cabinet-shadow: #c5bca8;
+    --bezel-dark: #221f1d;
+    --accent-red: #e63946;
+    --accent-pink: #ffb7b2;
+    --accent-gold: #f4a261;
+    --led-red: #ff3333;
+    --led-glow: rgba(255, 51, 51, 0.6);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: #121214;
+    background-image: radial-gradient(#252528 1px, transparent 1px);
+    background-size: 24px 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px;
+    overflow-x: hidden;
+}
+
+/* 主机机身容器 */
+.arcade-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 430px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 顶部半透明立体猫耳 */
+.cat-ears-container {
+    position: relative;
+    width: 90%;
+    height: 38px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 28px;
+    z-index: 1;
+    margin-bottom: -18px;
+}
+
+.cat-ear {
+    width: 68px;
+    height: 52px;
+    background: linear-gradient(145deg, rgba(255, 245, 245, 0.85), rgba(255, 205, 210, 0.45));
+    border-radius: 50% 50% 15% 15% / 70% 70% 30% 30%;
+    border: 3.5px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18), inset 0 2px 8px rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+    transform-origin: bottom center;
+}
+
+.cat-ear.left {
+    transform: rotate(-14deg);
+}
+
+.cat-ear.right {
+    transform: rotate(14deg);
+}
+
+/* 主机箱体外壳 */
+.arcade-cabinet {
+    position: relative;
+    width: 100%;
+    background: linear-gradient(180deg, #f7f3ea 0%, #ece5d6 60%, #e1d8c4 100%);
+    border-radius: 28px;
+    box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.5),
+        inset 0 2px 3px #ffffff,
+        inset 0 -6px 12px rgba(0, 0, 0, 0.12);
+    border: 4px solid var(--cabinet-border);
+    padding: 14px 14px 20px 14px;
+    overflow: hidden;
+    transition: transform 0.05s ease;
+}
+
+.arcade-cabinet.shake {
+    animation: machineShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes machineShake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+    40%, 60% { transform: translate3d(3px, 0, 0); }
+}
+
+/* 顶部数码仪表板 (亚克力半透明面板) */
+.dashboard-panel {
+    background: rgba(235, 229, 218, 0.85);
+    border-radius: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.9), 0 3px 8px rgba(0, 0, 0, 0.08);
+    padding: 10px 12px 8px 12px;
+    margin-bottom: 12px;
+}
+
+.scoreboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.score-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.score-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6d6458;
+    margin-bottom: 2px;
+    letter-spacing: -0.2px;
+}
+
+.led-display {
+    width: 100%;
+    background: #181512;
+    border-radius: 4px;
+    border: 1.5px solid #443c33;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+    padding: 3px 2px;
+    text-align: center;
+    color: var(--led-red);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 16px;
+    font-weight: 900;
+    text-shadow: 0 0 6px var(--led-glow);
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 装饰投币孔与功能按键行 */
+.dash-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    padding: 0 4px;
+}
+
+.coin-slot-bar {
+    position: relative;
+    width: 110px;
+    height: 7px;
+    background: #25201b;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 3px #000, 0 1px 1px rgba(255,255,255,0.8);
+}
+
+.coin-slot-bar::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fffde7, #ffc107 55%, #ef6c00);
+    opacity: 0;
+    transform: translate(-8px, -50%);
+}
+
+.coin-slot-bar.coin-slot-active::after {
+    animation: coinBeadFeed 0.36s ease-out;
+}
+
+@keyframes coinBeadFeed {
+    0% { opacity: 0; transform: translate(-8px, -50%) scale(.5); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translate(92px, -50%) scale(1); }
+}
+
+.coin-slot-bar.coin-slot-active {
+    animation: coinSlotFeed 0.36s ease-out;
+}
+
+@keyframes coinSlotFeed {
+    0% { transform: scaleX(1); filter: brightness(1); box-shadow: inset 0 1px 3px #000, 0 1px 1px rgba(255,255,255,0.8); }
+    35% { transform: scaleX(1.08); filter: brightness(1.8); box-shadow: inset 0 1px 3px #000, 0 0 10px rgba(255, 193, 7, 0.95); }
+    100% { transform: scaleX(1); filter: brightness(1); box-shadow: inset 0 1px 3px #000, 0 1px 1px rgba(255,255,255,0.8); }
+}
+
+.sub-btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.icon-sub-btn {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #554d43;
+    cursor: pointer;
+    transition: transform 0.1s, color 0.1s;
+}
+
+.icon-sub-btn:hover {
+    color: var(--accent-red);
+}
+
+.icon-sub-btn:active {
+    transform: scale(0.92);
+}
+
+.icon-sub-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+/* 主游玩区 (玻罩盘面) */
+.playfield-container {
+    position: relative;
+    width: 100%;
+    height: 520px;
+    background: #fbf9f5;
+    border-radius: 20px;
+    border: 4px solid #ded6c5;
+    box-shadow:
+        inset 0 4px 10px rgba(0, 0, 0, 0.12),
+        inset 0 -2px 6px rgba(255, 255, 255, 0.8),
+        0 4px 10px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+/* 物理渲染 Canvas */
+#playfield-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+}
+
+/* 玻璃高光反光层 */
+.glass-reflection {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.06) 45%, transparent 60%);
+    pointer-events: none;
+    z-index: 5;
+    border-radius: 16px;
+}
+
+/* 盘面中央 LOGO 艺术字 */
+.playfield-watermark-logo {
+    position: absolute;
+    top: 175px;
+    left: 46%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.88;
+}
+
+.logo-row-1 {
+    font-size: 34px;
+    font-weight: 900;
+    color: #ff9999;
+    letter-spacing: 4px;
+    text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 0 4px 8px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.paw-icon-small {
+    font-size: 20px;
+    color: #ffb3ba;
+}
+
+.logo-row-2 {
+    font-size: 38px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: 5px;
+    text-shadow: 2px 2px 0 #baa58f, -2px -2px 0 #baa58f, 2px -2px 0 #baa58f, -2px 2px 0 #baa58f, 0 6px 12px rgba(138, 120, 102, 0.25);
+    margin-top: -4px;
+}
+
+/* 盘面顶部状态栏 */
+.playfield-status-header {
+    position: absolute;
+    top: 52px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 3;
+    pointer-events: none;
+}
+
+#status-bar-text {
+    font-size: 13px;
+    font-weight: 800;
+    color: #4a4239;
+    background: rgba(255, 255, 255, 0.75);
+    padding: 3px 14px;
+    border-radius: 12px;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+    transition: transform 0.2s, color 0.2s;
+}
+
+#status-bar-text.highlight {
+    color: var(--accent-red);
+    transform: scale(1.08);
+}
+
+/* 下方控制台操作区 (Control Deck) */
+.control-deck {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding: 0 4px;
+    position: relative;
+}
+
+/* 装饰性出币/观察孔 */
+.deck-left-slot {
+    width: 65px;
+    height: 32px;
+    background: #ded7c7;
+    border-radius: 6px;
+    border: 2px solid #b8af9d;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+}
+
+.deck-slot-hole {
+    width: 10px;
+    height: 10px;
+    background: #25201b;
+    border-radius: 50%;
+}
+
+/* 背包与待发弹珠状态 */
+.backpack-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.loaded-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    font-size: 16px;
+    color: #3b352e;
+}
+
+.bet-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 30px);
+    gap: 4px;
+}
+
+.bet-quick-btn {
+    min-width: 30px;
+    height: 24px;
+    padding: 0;
+    border: 1.5px solid #c7bba8;
+    border-radius: 6px;
+    background: #fffdf8;
+    color: #4a4136;
+    box-shadow: 0 2px 0 #b8aa95;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.bet-quick-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+}
+
+.mini-pearl-icon {
+    width: 13px;
+    height: 13px;
+    background: radial-gradient(circle at 35% 35%, #ffffff, #b0bec5);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.btn-backpack {
+    background: none;
+    border: none;
+    font-size: 10px;
+    font-weight: 700;
+    color: #635b50;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* 3D 猫爪造型交互按钮 (投珠 / 开始) */
+.paw-button-container {
+    display: flex;
+    gap: 12px;
+}
+
+.paw-btn {
+    position: relative;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 6px 14px 10px 14px;
+    border-radius: 18px;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2), 0 8px 14px rgba(0, 0, 0, 0.15);
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.paw-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2), 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* 白色投珠猫爪 */
+.paw-btn.white-paw {
+    background: linear-gradient(180deg, #ffffff 0%, #ece5d8 100%);
+    color: #3e3831;
+    border: 2px solid #d2c8b7;
+}
+
+/* 红色开始猫爪 */
+.paw-btn.red-paw {
+    background: linear-gradient(180deg, #ff4d4d 0%, #d81b28 100%);
+    color: #ffffff;
+    border: 2px solid #b71c1c;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 顶部猫爪肉垫装饰 (4个小肉球) */
+.paw-pads-row {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.paw-pad {
+    width: 6px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.white-paw .paw-pad {
+    background: #d8cebd;
+}
+
+.red-paw .paw-pad {
+    background: #ffffff;
+}
+
+/* 右侧机械弹簧拉杆区 (Plunger Mechanism) */
+.plunger-deck-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 44px;
+}
+
+.plunger-guide-slot {
+    width: 14px;
+    height: 38px;
+    background: #231f1c;
+    border-radius: 7px;
+    box-shadow: inset 0 2px 4px #000;
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.plunger-spring-svg {
+    position: absolute;
+    top: 2px;
+    width: 10px;
+    height: 28px;
+    stroke: #aaa;
+    stroke-width: 1.8;
+    fill: none;
+    transform-origin: top center;
+    transition: transform 0.05s linear;
+}
+
+/* 红色实体蓄力拉杆球头 */
+.plunger-knob {
+    width: 34px;
+    height: 34px;
+    background: radial-gradient(circle at 35% 35%, #ff6666, #d50000 70%, #8b0000);
+    border-radius: 50%;
+    box-shadow: 0 5px 8px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.6);
+    border: 2px solid #9e0000;
+    cursor: grab;
+    position: relative;
+    top: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    z-index: 10;
+}
+
+.plunger-knob:active, .plunger-knob.active {
+    cursor: grabbing;
+}
+
+.plunger-knob.pulse {
+    animation: knobPulse 0.8s infinite alternate;
+}
+
+@keyframes knobPulse {
+    from { transform: scale(1); filter: drop-shadow(0 0 0px #ff3333); }
+    to { transform: scale(1.12); filter: drop-shadow(0 0 8px #ff3333); }
+}
+
+.knob-paw-relief {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* 底部出球收纳猫脸托盘 (Bottom Hopper & Relief) */
+.bottom-dispenser-section {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding: 0 10px;
+    position: relative;
+}
+
+.hopper-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.hopper-exit-chute {
+    width: 48px;
+    height: 12px;
+    background: #25201b;
+    border-radius: 3px;
+    box-shadow: inset 0 2px 4px #000;
+    margin-bottom: 4px;
+}
+
+.hopper-exit-chute.hopper-active {
+    animation: hopperFeed 0.42s ease-in-out infinite alternate;
+}
+
+@keyframes hopperFeed {
+    from { transform: translateY(0) scaleX(1); filter: brightness(1); }
+    to { transform: translateY(2px) scaleX(1.08); filter: brightness(1.7); box-shadow: inset 0 2px 4px #000, 0 0 12px rgba(255, 82, 82, 0.85); }
+}
+
+/* 猫脸造型物理接球托盘 */
+.cat-tray {
+    position: relative;
+    width: 140px;
+    height: 52px;
+    background: linear-gradient(180deg, #f7f2e7 0%, #ded6c5 100%);
+    border: 3.5px solid #cac0ae;
+    border-radius: 12px 12px 24px 24px;
+    box-shadow:
+        0 8px 16px rgba(0, 0, 0, 0.15),
+        inset 0 3px 6px rgba(255, 255, 255, 0.9),
+        inset 0 -3px 6px rgba(0,0,0,0.08);
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 猫耳托盘边缘 */
+.cat-tray::before, .cat-tray::after {
+    content: '';
+    position: absolute;
+    top: -9px;
+    width: 22px;
+    height: 16px;
+    background: #f7f2e7;
+    border: 3.5px solid #cac0ae;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+}
+
+.cat-tray::before {
+    left: 8px;
+    transform: rotate(-20deg);
+}
+
+.cat-tray::after {
+    right: 8px;
+    transform: rotate(20deg);
+}
+
+.tray-hint-text {
+    font-size: 10px;
+    font-weight: 800;
+    color: #8c8273;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* 掉落到托盘里的动态仿真珠子 */
+.tray-drop-ball {
+    position: absolute;
+    top: -15px;
+    width: 16px;
+    height: 16px;
+    background: radial-gradient(circle at 35% 35%, #ffffff, #90a4ae 60%, #37474f);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    z-index: 10;
+    animation: trayBallDrop 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.tray-drop-ball.gold {
+    background: radial-gradient(circle at 35% 35%, #fffde7, #ffd700 60%, #ff8f00);
+}
+
+.tray-drop-ball.neon {
+    background: radial-gradient(circle at 35% 35%, #e0f7fa, #00e5ff 60%, #00838f);
+}
+
+@keyframes trayBallDrop {
+    0% { top: -20px; opacity: 0; transform: scale(0.6); }
+    30% { opacity: 1; transform: scale(1); }
+    70% { top: 22px; transform: scale(1.1, 0.85); }
+    85% { top: 18px; transform: scale(0.95, 1.05); }
+    100% { top: 20px; transform: scale(1); }
+}
+
+/* 箱体右侧凹凸猫爪纹理雕刻 (Relief Carvings) */
+.cabinet-embossed-paws {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.45;
+}
+
+.embossed-paw-big {
+    font-size: 38px;
+    color: #c9bfab;
+    text-shadow: 1px 1px 0 #fff, -1px -1px 0 #b3a893;
+}
+
+.embossed-paw-small {
+    font-size: 22px;
+    color: #c9bfab;
+    text-shadow: 1px 1px 0 #fff, -1px -1px 0 #b3a893;
+    margin-left: 20px;
+}
+
+/* 按钮吸引动画 (看广告加珠提醒) */
+.btn-attention {
+    animation: attentionBounce 0.5s infinite alternate;
+}
+
+@keyframes attentionBounce {
+    from { transform: scale(1); }
+    to { transform: scale(1.12); color: var(--accent-red); }
+}
+
+/* ================= 通用模态弹窗 (Modals) ================= */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    padding: 16px;
+}
+
+.modal.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 360px;
+    background: #fdfbf7;
+    border-radius: 20px;
+    border: 3px solid #dcd4c3;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    position: relative;
+    animation: modalPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalPop {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px dashed #ded6c7;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+}
+
+.modal-title {
+    font-size: 17px;
+    font-weight: 900;
+    color: #4a4136;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: #887d70;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* 广告模拟进度 */
+.ad-screen-box {
+    background: #2a2520;
+    border-radius: 12px;
+    padding: 18px 12px;
+    text-align: center;
+    color: #fff;
+    margin-bottom: 16px;
+}
+
+.ad-cat-anim {
+    font-size: 40px;
+    animation: catRoll 1s infinite alternate;
+}
+
+@keyframes catRoll {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+}
+
+.ad-progress-wrapper {
+    width: 100%;
+    height: 10px;
+    background: #443c33;
+    border-radius: 5px;
+    margin: 12px 0 6px 0;
+    overflow: hidden;
+}
+
+.ad-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #ff9800, #4caf50);
+    transition: width 0.3s linear;
+}
+
+.btn-primary-action {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(180deg, #4caf50 0%, #2e7d32 100%);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 900;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+    cursor: pointer;
+}
+
+.btn-primary-action:disabled {
+    background: #9e9e9e;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* 排行榜列表 */
+.rank-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.rank-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f1ebd8;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.rank-item.my-rank {
+    background: #ffecb3;
+    border: 1.5px solid #ffa000;
+}
+
+/* 皮肤选择网格 */
+.skins-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.skin-card {
+    background: #f1ebd8;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 12px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.skin-card.active, .skin-card:hover {
+    border-color: var(--accent-red);
+    background: #fff;
+}
+
+.skin-ball-preview {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin: 0 auto 6px auto;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+.skin-ball-preview.classic {
+    background: radial-gradient(circle at 35% 35%, #ffffff, #90a4ae 60%, #37474f);
+}
+
+.skin-ball-preview.gold {
+    background: radial-gradient(circle at 35% 35%, #fffde7, #ffd700 60%, #ff8f00);
+}
+
+.skin-ball-preview.neon {
+    background: radial-gradient(circle at 35% 35%, #e0f7fa, #00e5ff 60%, #00838f);
+}
+
+.skin-name {
+    font-size: 11px;
+    font-weight: 800;
+    color: #4a4136;
+}
+
+/* ================= V3.0 新增机台交互控件样式 ================= */
+
+/* 左侧倍率指示器 (Control Deck) */
+.multiplier-display-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #ded7c7;
+    border-radius: 8px;
+    border: 2px solid #b8af9d;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    padding: 3px 8px;
+    min-width: 54px;
+}
+
+.unit-mini-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: #6d6458;
+}
+
+.multiplier-badge {
+    font-size: 15px;
+    font-weight: 900;
+    font-family: 'Courier New', Courier, monospace;
+    color: #554d43;
+    transition: transform 0.1s, color 0.1s;
+}
+
+.multiplier-badge.active {
+    color: #d32f2f;
+    text-shadow: 0 0 6px rgba(211, 47, 47, 0.4);
+    transform: scale(1.1);
+}
+
+.multiplier-badge.rolling {
+    color: #f57c00;
+    animation: rollBounce 0.08s infinite alternate;
+}
+
+@keyframes rollBounce {
+    from { transform: translateY(-1px); }
+    to { transform: translateY(1px); }
+}
+
+/* 文本输入框 */
+.text-input-field {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 2px solid #c8bead;
+    background: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    color: #3b352e;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.text-input-field:focus {
+    border-color: #e63946;
+}
+
+/* 快捷加珠按钮组 */
+.quick-add-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.quick-add-btn {
+    background: #f1ebd8;
+    border: 1.5px solid #d4cab8;
+    border-radius: 8px;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 800;
+    color: #4a4136;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.quick-add-btn:hover {
+    background: #e8deca;
+    border-color: #bfaea0;
+}
+
+.quick-add-btn:active {
+    transform: scale(0.94);
+}
+
+/* 错误提示文字 */
+.error-tip {
+    font-size: 12px;
+    color: #d32f2f;
+    font-weight: 800;
+    margin-top: 6px;
+    text-align: left;
+}
+
+.highlight-btn {
+    color: #d32f2f !important;
+    font-weight: 900 !important;
+}
+
+.settings-value-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: #f4eee1;
+    padding: 8px 10px;
+    border-radius: 10px;
+}
+
+.settings-section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #d8cdbb;
+    color: #4a4136;
+}
+
+.settings-section-heading strong {
+    font-size: 13px;
+}
+
+.settings-section-heading span {
+    color: #7b7062;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: right;
+}
+
+.local-settings-heading {
+    margin-top: 2px;
+}
+
+.settings-value-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #4a4136;
+}
+
+.settings-value-grid input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-weight: 800;
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    body { padding: 4px; align-items: flex-start; }
+    .arcade-wrapper { max-width: 100%; }
+    .cat-ears-container { height: 26px; padding: 0 18px; margin-bottom: -12px; }
+    .cat-ear { width: 48px; height: 38px; border-width: 2px; }
+    .arcade-cabinet { border-radius: 18px; border-width: 3px; padding: 8px 8px 14px; }
+    .dashboard-panel { padding: 7px 8px 6px; margin-bottom: 8px; border-radius: 12px; }
+    .scoreboard-grid { gap: 3px; margin-bottom: 6px; }
+    .score-label { font-size: 8px; }
+    .led-display { font-size: 13px; min-height: 24px; }
+    .dash-actions-row { padding: 0 2px; }
+    .coin-slot-bar { width: 58px; }
+    .sub-btn-group { gap: 6px; }
+    .icon-sub-btn { font-size: 9px; gap: 2px; }
+    .icon-sub-btn svg { width: 13px; height: 13px; }
+    .playfield-container { height: auto; aspect-ratio: 400 / 570; border-radius: 14px; }
+    .control-deck { margin-top: 8px; padding: 0 2px; gap: 5px; }
+    .paw-button-container { gap: 6px; }
+    .paw-btn { padding: 5px 9px 8px; font-size: 12px; border-radius: 14px; }
+    .multiplier-display-unit { min-width: 44px; padding: 2px 5px; }
+    .loaded-indicator { font-size: 13px; gap: 4px; }
+    .bet-quick-actions { grid-template-columns: repeat(2, 27px); gap: 3px; }
+    .bet-quick-btn { min-width: 27px; height: 21px; font-size: 10px; }
+    .btn-backpack { font-size: 9px; }
+    .bottom-dispenser-section { margin-top: 9px; padding: 0 5px; }
+    .cat-tray { width: 112px; height: 44px; }
+    .modal-card { max-height: calc(100dvh - 24px); overflow-y: auto; padding: 15px; }
+}
+
+@media (max-width: 480px) and (orientation: landscape) {
+    body { align-items: center; }
+    .arcade-wrapper { max-width: min(92vw, 430px); }
+    .arcade-cabinet { max-height: 98vh; overflow-y: auto; }
+}
+
+:fullscreen { background: #121214; }
