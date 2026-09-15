@@ -1,6 +1,6 @@
 /**
  * HappyPinballGame - 主游戏控制与业务逻辑 V3.0
- * 1. 免费加珠：无需等待广告，输入密码 ma123456 后设定添加珠子数量
+ * 1. 免费加珠：输入密码 ma123456 后设定添加珠子数量
  * 2. 5~99 投珠开局，按开始确定倍率 (2×/4×/6×/8×/10×)，按倍率点亮 12 落点对应灯格
  * 3. 亮灯后发射前可追加投珠 (上限 99)
  * 4. 中奖返珠 = 倍率 × 投珠，积分卡 = min(floor(返珠 / T), J)
@@ -55,6 +55,8 @@ class PinballGame {
         this.feverSpawnInterval = 0.08;
         this.feverWinBeads = 0;
         this.feverScoredCount = 0;
+        this.feverRoundGain = 0;
+        this.feverRoundGainCap = 3;
         this.preFeverLitSlots = [];
         this.preFeverMultiplier = 0;
         this.pendingRoundReset = false;
@@ -806,6 +808,7 @@ class PinballGame {
         this.currentMultiplier = 0;
         this.litSlots = [];
         this.isFreeLaunch = false;
+        this.feverRoundGain = 0;
         this.physics.clearLitSlots();
         this.updateHUD();
 
@@ -1042,7 +1045,12 @@ class PinballGame {
 
     addFeverEnergy(amount) {
         if (this.feverActive) return;
-        this.feverEnergy = Math.min(100, this.feverEnergy + amount);
+        const remaining = this.feverRoundGainCap - this.feverRoundGain;
+        if (remaining <= 0) return;
+        const actual = Math.min(amount, remaining);
+        if (actual <= 0) return;
+        this.feverRoundGain += actual;
+        this.feverEnergy = Math.min(100, this.feverEnergy + actual);
         localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
         this.updateFeverUI();
         if (this.feverEnergy >= 100) this.startFever();
@@ -1464,6 +1472,7 @@ class PinballGame {
                 this.endFever();
             }
             this.feverEnergy = 0;
+            this.feverRoundGain = 0;
             localStorage.setItem('hpb_fever_energy', '0');
             this.updateFeverUI();
             this.slotWinCount = 0;
