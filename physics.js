@@ -283,6 +283,20 @@ class PinballPhysics {
         this.plunger.power = 0;
     }
 
+    // Dislodge a marble that is moving through the playfield without
+    // returning it to the plunger or changing its launch state.
+    shakeActiveBall() {
+        const activeBall = this.balls.find(ball =>
+            ball.state === 'launched' || ball.state === 'in_play'
+        );
+        if (!activeBall) return false;
+
+        const direction = Math.random() < 0.5 ? -1 : 1;
+        activeBall.vx += direction * 260;
+        activeBall.vy += 120;
+        return true;
+    }
+
     update(dt) {
         const clampedDt = Math.min(dt, 0.035);
         const subDt = clampedDt / this.subSteps;

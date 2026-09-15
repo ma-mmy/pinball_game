@@ -634,16 +634,7 @@ class PinballGame {
             machine.classList.add('shake');
             setTimeout(() => machine.classList.remove('shake'), 450);
         }
-        const activeBall = this.physics.balls.find(ball => ball.state !== 'scored');
-        if (activeBall) {
-            activeBall.state = 'ready';
-            activeBall.x = 372;
-            activeBall.y = this.physics.plunger.restY - activeBall.radius;
-            activeBall.vx = 0;
-            activeBall.vy = 0;
-            this.gameState = this.currentMultiplier > 0 ? 'READY_TO_LAUNCH' : 'IDLE';
-        }
-        this.setStatus('');
+        this.physics.shakeActiveBall();
     }
 
     // 发射判定：落入亮灯格 vs 未亮灯格
@@ -671,7 +662,12 @@ class PinballGame {
         } else {
             // 未亮灯格：全损！
             window.soundEngine.playLossSound();
-            this.setStatus(`💔 未中奖！落入未亮灯格，投入的 ${this.currentBet} 颗珠子全损！`, true);
+            const lossMessage = `💔 未中奖！落入未亮灯格，投入的 ${this.currentBet} 颗珠子全损！`;
+            this.setStatus(lossMessage, true);
+            // 失败结算无需等待动画，立即允许玩家开始下一局。
+            this.resetRound();
+            this.setStatus(lossMessage, true);
+            return;
         }
 
         // 2.6秒后自动重置对局，并将奖励汇入总珠子
@@ -684,9 +680,8 @@ class PinballGame {
         this.gameState = 'RESOLVING';
         window.soundEngine.playLossSound();
         this.setStatus(`弹珠滑出盘面，本局结束。`);
-        setTimeout(() => {
-            this.resetRound();
-        }, 1500);
+        this.resetRound();
+        this.setStatus(`弹珠滑出盘面，本局结束。`);
     }
 
     resetRound() {
