@@ -685,7 +685,7 @@ class PinballGame {
                 window.soundEngine.playPinHit(data.pitch);
             }
             if (!this.feverActive && !data.isFeverBall) {
-                this.addFeverEnergy(0.25);
+                this.addFeverEnergy(0.1);
             }
         } else if (type === 'plunger_release') {
             window.soundEngine.playSpringRelease(data.power);
@@ -994,7 +994,7 @@ class PinballGame {
             message = `${isTriple ? '三连' : '两连'} 🐟！额外 ${beads} 颗珠子！`;
             if (resultEl) resultEl.textContent = message;
             this.setStatus(`🎰 ${message}`, true);
-            const done = setTimeout(() => this.closeCatSlot(), 2200);
+            const done = setTimeout(() => this.closeCatSlot(), 3800);
             this.catSlotTimers.push(done);
             return;
         }
@@ -1007,7 +1007,7 @@ class PinballGame {
             message = `${isTriple ? '三连' : '两连'} 🐱！额外 ${cards} 张积分卡！`;
             if (resultEl) resultEl.textContent = message;
             this.setStatus(`🎰 ${message}`, true);
-            const done = setTimeout(() => this.closeCatSlot(), 2200);
+            const done = setTimeout(() => this.closeCatSlot(), 3800);
             this.catSlotTimers.push(done);
             return;
         }
@@ -1019,7 +1019,7 @@ class PinballGame {
         const done = setTimeout(() => {
             this.closeCatSlot();
             this.grantFreeLaunch(launchMult);
-        }, 1600);
+        }, 3800);
         this.catSlotTimers.push(done);
     }
 
