@@ -1,5 +1,6 @@
 {
   "soundEnabled": true,
+  "highElasticEnabled": true,
   "configT": 30,
   "configJ": 10,
   "multiplierProbabilities": [

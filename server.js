@@ -10,6 +10,7 @@ const ACCOUNTS_FILE = path.join(ROOT, 'accounts.json');
 const DEFAULT_PASSWORD = 'ma123456';
 const DEFAULT_CONFIG = {
     soundEnabled: true,
+    highElasticEnabled: true,
     configT: 20,
     configJ: 10,
     multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7],
@@ -39,6 +40,9 @@ function isValidConfig(config) {
     if (config.password !== undefined && !isValidPassword(config.password)) {
         return false;
     }
+    if (config.highElasticEnabled !== undefined && typeof config.highElasticEnabled !== 'boolean') {
+        return false;
+    }
     const probabilities = config.multiplierProbabilities.map(Number);
     const total = probabilities.reduce((sum, value) => sum + value, 0);
     return probabilities.every(value => Number.isFinite(value) && value >= 0) && Math.abs(total - 100) <= 0.01;
@@ -48,6 +52,7 @@ function normalizeConfig(config, fallbackPassword = DEFAULT_PASSWORD) {
     if (!isValidConfig(config)) return { ...DEFAULT_CONFIG };
     return {
         soundEnabled: config.soundEnabled,
+        highElasticEnabled: typeof config.highElasticEnabled === 'boolean' ? config.highElasticEnabled : true,
         configT: config.configT,
         configJ: config.configJ,
         multiplierProbabilities: config.multiplierProbabilities.map(Number),

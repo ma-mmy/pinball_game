@@ -6,6 +6,7 @@
  * 4. 中奖返珠 = 倍率 × 投珠，积分卡 = min(floor(返珠 / T), J)
  * 5. 点击投珠 +1、快捷投珠 +5/+10，长按高速连续投珠
  * 6. 输入用户名进入账户，积分和弹珠跟随账户保存在服务器，换浏览器可继续玩
+ * 7. 定投模式：每局自动投入设定珠数，可选自动开始并满力发射
  */
 class PinballGame {
     constructor() {
@@ -45,6 +46,7 @@ class PinballGame {
         // 全局规则由所有机器共享；弹珠和积分仍保存在当前机器。
         this.globalConfigStorageKey = 'hpb_global_config_v1';
         this.globalConfigChannel = this.createGlobalConfigChannel();
+        this.highElasticEnabled = true;
         this.applyGlobalConfig(this.loadGlobalConfig());
 
         // 对局状态
@@ -52,7 +54,6 @@ class PinballGame {
         this.currentMultiplier = 0; // 锁定倍率 (2, 4, 6, 8, 10)
         this.litSlots = []; // 当前点亮的落点槽位索引
         this.currentSkin = localStorage.getItem('hpb_ball_skin') || 'classic';
-        this.highElasticEnabled = localStorage.getItem('hpb_high_elastic_enabled') !== 'false';
         this.gameState = 'IDLE'; // IDLE, MULTIPLIER_ROLLING, READY_TO_LAUNCH, BALL_IN_PLAY, RESOLVING
 
         // Fever 狂欢多球
@@ -73,6 +74,7 @@ class PinballGame {
         this.preFeverLitSlots = [];
         this.preFeverMultiplier = 0;
         this.pendingRoundReset = false;
+        this.pendingFever = false;
 
         // 猫咪拉霸：每中奖 10 次触发
         this.catSlotSymbols = [
@@ -98,6 +100,24 @@ class PinballGame {
         this.insertHoldTimer = null;
         this.insertHoldInterval = null;
 
+        // 定投模式（保存在本地）
+        this.autoInvestStorageKey = 'hpb_auto_invest_v1';
+        this.autoInvestEnabled = false;
+        this.autoInvestAmount = 10;
+        this.autoStartEnabled = false;
+        this.autoInvestPaused = false;
+        this.autoInvestRunning = false;
+        this.autoInvestAnimValue = null;
+        this.autoInvestTimer = null;
+        this.autoInvestAnimFrame = null;
+        this.autoLaunchTimer = null;
+        this.autoLaunchFrame = null;
+        this.autoInvestSettleDelayMs = 400;
+        this.autoInvestRollMs = 200;
+        this.autoLaunchAfterLockMs = 280;
+        this.autoLaunchPullMs = 160;
+        this.loadAutoInvestSettings();
+
         // 拉杆拖拽状态
         this.isPullingPlunger = false;
         this.pullStartY = 0;
@@ -109,7 +129,6 @@ class PinballGame {
         this.initEventListeners();
         this.initGlobalConfigSync();
         this.initAccountSystem();
-        this.syncHighElasticToggle();
         this.updateHUD();
         this.updateFeverUI();
         this.updateSlotProgressUI();
@@ -121,6 +140,7 @@ class PinballGame {
 
     initUI() {
         this.updateHUD();
+        this.updateAutoInvestButton();
         this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
     }
 
@@ -132,7 +152,8 @@ class PinballGame {
         this.rewardScoreEl.textContent = this.rewardScore;
 
         if (this.loadedCountEl) {
-            this.loadedCountEl.textContent = `${this.currentBet}`;
+            const display = this.autoInvestAnimValue != null ? this.autoInvestAnimValue : this.currentBet;
+            this.loadedCountEl.textContent = `${display}`;
         }
 
         if (this.multiplierBadgeEl) {
@@ -154,11 +175,16 @@ class PinballGame {
     getDefaultGlobalConfig() {
         return {
             soundEnabled: true,
+            highElasticEnabled: true,
             configT: 20,
             configJ: 10,
             multiplierProbabilities: [42, 28.8, 12.7, 10.8, 5.7],
             password: 'ma123456'
         };
+    }
+
+    readLegacyHighElasticEnabled() {
+        return localStorage.getItem('hpb_high_elastic_enabled') !== 'false';
     }
 
     isValidAdminPassword(password) {
@@ -176,6 +202,7 @@ class PinballGame {
             const oldProbabilities = JSON.parse(localStorage.getItem('hpb_multiplier_probabilities') || 'null');
             const migrated = {
                 ...defaults,
+                highElasticEnabled: this.readLegacyHighElasticEnabled(),
                 configT: parseInt(localStorage.getItem('hpb_config_t') || defaults.configT, 10),
                 configJ: parseInt(localStorage.getItem('hpb_config_j') || defaults.configJ, 10),
                 multiplierProbabilities: Array.isArray(oldProbabilities)
@@ -197,6 +224,9 @@ class PinballGame {
         if (config.password !== undefined && !this.isValidAdminPassword(config.password)) {
             return false;
         }
+        if (config.highElasticEnabled !== undefined && typeof config.highElasticEnabled !== 'boolean') {
+            return false;
+        }
         const probabilities = config.multiplierProbabilities.map(Number);
         const total = probabilities.reduce((sum, value) => sum + value, 0);
         return probabilities.every(value => Number.isFinite(value) && value >= 0) && Math.abs(total - 100) <= 0.01;
@@ -206,6 +236,9 @@ class PinballGame {
         if (!this.isValidGlobalConfig(config)) return this.getDefaultGlobalConfig();
         return {
             soundEnabled: config.soundEnabled,
+            highElasticEnabled: typeof config.highElasticEnabled === 'boolean'
+                ? config.highElasticEnabled
+                : this.readLegacyHighElasticEnabled(),
             configT: config.configT,
             configJ: config.configJ,
             multiplierProbabilities: config.multiplierProbabilities.map(Number),
@@ -221,6 +254,9 @@ class PinballGame {
         this.multiplierProbabilities = normalized.multiplierProbabilities;
         this.adminPassword = normalized.password;
         if (window.soundEngine) window.soundEngine.enabled = normalized.soundEnabled;
+        const highElasticChanged = this.highElasticEnabled !== normalized.highElasticEnabled;
+        this.highElasticEnabled = normalized.highElasticEnabled;
+        if (highElasticChanged && this.physics) this.applyHighElasticPins();
 
         if (notify) {
             this.populateGlobalSettingsFields();
@@ -232,6 +268,7 @@ class PinballGame {
     getGlobalConfig() {
         return {
             soundEnabled: !!(window.soundEngine && window.soundEngine.enabled),
+            highElasticEnabled: !!this.highElasticEnabled,
             configT: this.configT,
             configJ: this.configJ,
             multiplierProbabilities: [...this.multiplierProbabilities],
@@ -315,6 +352,7 @@ class PinballGame {
 
     isRoundBusy() {
         return this.feverActive ||
+            this.autoInvestRunning ||
             this.gameState === 'BALL_IN_PLAY' ||
             this.gameState === 'RESOLVING' ||
             this.gameState === 'MULTIPLIER_ROLLING' ||
@@ -567,6 +605,12 @@ class PinballGame {
         this.litSlots = [];
         this.physics.clearLitSlots();
         this.applyAccountData(account, { silent });
+        this.loadAutoInvestSettings();
+        this.updateAutoInvestButton();
+        if (!this.isRoundBusy() && this.currentMultiplier === 0) {
+            this.gameState = 'IDLE';
+            this.scheduleAutoInvest();
+        }
         return account;
     }
 
@@ -799,6 +843,7 @@ class PinballGame {
 
     insertBalls(requestedCount = 1) {
         if (!this.requireLogin()) return false;
+        if (this.autoInvestRunning) return false;
         if (this.isFreeLaunch) {
             this.setStatus('🎁 免费发射中，直接拉动拉杆！', true);
             return false;
@@ -844,6 +889,7 @@ class PinballGame {
     onStartBtnClicked() {
         window.soundEngine.playBtnClick();
         if (!this.requireLogin()) return;
+        if (this.autoInvestRunning) return;
 
         if (this.feverActive || this.gameState === 'CAT_SLOT' || this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
             return;
@@ -858,6 +904,8 @@ class PinballGame {
             }
 
             // 投入达到 5~99 颗，开始摇号抽取倍率
+            this.clearStartReady();
+            this.cancelAutoInvestInsert(true);
             this.rollMultiplier();
             return;
         }
@@ -903,7 +951,28 @@ class PinballGame {
         }, 65);
     }
 
-    // 锁定倍率并点亮 12 落点中的随机灯格
+    // 从落点中随机选取 count 个互不相邻的灯格（任意两个中奖灯之间至少隔 1 格）
+    pickNonAdjacentSlotIndices(count) {
+        const total = this.physics.slots.length;
+        // 一排 n 个孔洞最多可点亮 ceil(n / 2) 个互不相邻的灯
+        const maxIndependent = Math.ceil(total / 2);
+        const k = Math.min(Math.max(0, count | 0), maxIndependent, total);
+        if (k <= 0) return [];
+
+        // 从 n-k+1 个数中均匀抽 k 个，再映射为间隔至少为 2 的下标
+        const poolSize = total - k + 1;
+        const pool = Array.from({ length: poolSize }, (_, i) => i);
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return pool
+            .slice(0, k)
+            .sort((a, b) => a - b)
+            .map((value, offset) => value + offset);
+    }
+
+    // 锁定倍率并点亮落点中的随机灯格（中奖灯不得相邻）
     lockMultiplier(mult) {
         this.currentMultiplier = mult;
         if (this.multiplierBadgeEl) {
@@ -921,14 +990,7 @@ class PinballGame {
         else if (mult === 6) litCount = 2;
         else if (mult === 8 || mult === 10) litCount = 1;
 
-        // 从 12 个落点中随机选取 litCount 个互不相同的槽位
-        const indices = this.physics.slots.map(slot => slot.index);
-        // Fisher-Yates 洗牌
-        for (let i = indices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [indices[i], indices[j]] = [indices[j], indices[i]];
-        }
-        this.litSlots = indices.slice(0, litCount);
+        this.litSlots = this.pickNonAdjacentSlotIndices(litCount);
 
         // 应用到物理引擎
         this.physics.setLitSlots(this.litSlots, mult);
@@ -944,6 +1006,7 @@ class PinballGame {
             this.setStatus(`✨ 抽中 ${mult}× 倍率！点亮 ${litCount} 个灯格！发射前可继续追加投珠，或向下拉动拉杆发射！`, true);
         }
         this.pulsePlunger();
+        if (this.shouldAutoLaunch()) this.scheduleAutoLaunch();
     }
 
     ensureBallStaged() {
@@ -988,6 +1051,345 @@ class PinballGame {
         };
         slot.addEventListener('animationend', onEnd);
         slot.classList.add('coin-slot-active');
+    }
+
+    clampAutoInvestAmount(value) {
+        const amount = parseInt(value, 10);
+        if (!Number.isInteger(amount)) return 10;
+        return Math.min(99, Math.max(5, amount));
+    }
+
+    readAutoInvestStore() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(this.autoInvestStorageKey) || 'null');
+            return saved && typeof saved === 'object' ? saved : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    loadAutoInvestSettings() {
+        const store = this.readAutoInvestStore();
+        const data = (this.currentUsername && store[this.currentUsername]) || store._ || store;
+        const enabled = !!(data && data.enabled);
+        const autoStart = !!(data && data.autoStart);
+        const amount = this.clampAutoInvestAmount(data && data.amount);
+        this.autoInvestEnabled = enabled;
+        this.autoStartEnabled = autoStart;
+        this.autoInvestAmount = amount;
+        this.autoInvestPaused = false;
+    }
+
+    saveAutoInvestSettings() {
+        const store = this.readAutoInvestStore();
+        const payload = {
+            enabled: this.autoInvestEnabled,
+            amount: this.autoInvestAmount,
+            autoStart: this.autoStartEnabled
+        };
+        store._ = payload;
+        if (this.currentUsername) store[this.currentUsername] = payload;
+        localStorage.setItem(this.autoInvestStorageKey, JSON.stringify(store));
+    }
+
+    updateAutoInvestButton() {
+        const btn = document.getElementById('btn-auto-invest');
+        const label = document.getElementById('auto-invest-label');
+        if (!btn || !label) return;
+        btn.classList.toggle('is-on', this.autoInvestEnabled);
+        btn.classList.toggle('is-running', this.autoInvestRunning);
+        btn.classList.toggle('is-paused', this.autoInvestEnabled && this.autoInvestPaused);
+        if (!this.autoInvestEnabled) {
+            label.textContent = '定投';
+            btn.title = '定投模式：设定每局自动投入珠数';
+        } else if (this.autoInvestRunning) {
+            label.textContent = `定投中(${this.autoInvestAmount})`;
+            btn.title = `正在定投 ${this.autoInvestAmount} 颗`;
+        } else {
+            label.textContent = `定投: ${this.autoInvestAmount}`;
+            btn.title = this.autoInvestPaused
+                ? `定投已暂停（珠子不足 ${this.autoInvestAmount} 颗）`
+                : `定投每局 ${this.autoInvestAmount} 颗${this.autoStartEnabled ? '，自动开局' : ''}`;
+        }
+    }
+
+    highlightStartBtn() {
+        const btn = document.getElementById('btn-start-game');
+        if (!btn) return;
+        btn.classList.add('start-ready');
+    }
+
+    clearStartReady() {
+        const btn = document.getElementById('btn-start-game');
+        if (btn) btn.classList.remove('start-ready');
+    }
+
+    canRunAutoInvest() {
+        return this.autoInvestEnabled &&
+            !this.autoInvestRunning &&
+            !this.isFreeLaunch &&
+            !this.feverActive &&
+            !this.pendingFever &&
+            !this.pendingCatSlot &&
+            this.currentMultiplier === 0 &&
+            this.gameState === 'IDLE';
+    }
+
+    shouldAutoLaunch() {
+        return this.autoInvestEnabled &&
+            this.autoStartEnabled &&
+            !this.isFreeLaunch &&
+            !this.feverActive &&
+            this.gameState === 'READY_TO_LAUNCH';
+    }
+
+    cancelAutoInvestInsert(finalize = true) {
+        if (this.autoInvestTimer) {
+            clearTimeout(this.autoInvestTimer);
+            this.autoInvestTimer = null;
+        }
+        if (this.autoInvestAnimFrame) {
+            cancelAnimationFrame(this.autoInvestAnimFrame);
+            this.autoInvestAnimFrame = null;
+        }
+        if (this.autoInvestRunning && finalize) {
+            this.finishAutoInvestInsert(this.autoInvestAmount, { startGame: false });
+            return;
+        }
+        this.autoInvestRunning = false;
+        this.autoInvestAnimValue = null;
+        if (this.loadedCountEl) this.loadedCountEl.classList.remove('is-rolling');
+        this.updateAutoInvestButton();
+    }
+
+    cancelAutoLaunch() {
+        if (this.autoLaunchTimer) {
+            clearTimeout(this.autoLaunchTimer);
+            this.autoLaunchTimer = null;
+        }
+        if (this.autoLaunchFrame) {
+            cancelAnimationFrame(this.autoLaunchFrame);
+            this.autoLaunchFrame = null;
+        }
+    }
+
+    cancelAutoPlay() {
+        this.cancelAutoInvestInsert(true);
+        this.cancelAutoLaunch();
+        this.clearStartReady();
+    }
+
+    scheduleAutoInvest(delayMs = this.autoInvestSettleDelayMs) {
+        this.cancelAutoInvestInsert(true);
+        if (!this.canRunAutoInvest()) return;
+        this.autoInvestTimer = setTimeout(() => {
+            this.autoInvestTimer = null;
+            this.runAutoInvest();
+        }, Math.max(0, delayMs));
+    }
+
+    runAutoInvest() {
+        if (!this.canRunAutoInvest()) return;
+        if (!this.requireLogin()) return;
+        if (document.querySelector('.modal.active')) {
+            this.scheduleAutoInvest();
+            return;
+        }
+
+        const target = this.autoInvestAmount;
+        if (this.currentBet >= target) {
+            this.autoInvestPaused = false;
+            this.updateAutoInvestButton();
+            this.onAutoInvestSettled();
+            return;
+        }
+
+        const need = target - this.currentBet;
+        if (this.totalBeads < need) {
+            this.autoInvestPaused = true;
+            this.updateAutoInvestButton();
+            this.setStatus(`⚠️ 珠子不足 ${target} 颗，定投已暂停。补充珠子后将自动继续。`, true);
+            this.highlightAddBeadsBtn();
+            return;
+        }
+
+        this.autoInvestPaused = false;
+        this.autoInvestRunning = true;
+        this.totalBeads -= need;
+        const fromValue = this.currentBet;
+        this.updateHUD();
+        this.updateAutoInvestButton();
+        this.setStatus(`定投灌入 ${target} 颗…`);
+        window.soundEngine.playAutoInvestBurst();
+        this.playInsertEffect();
+        this.animateAutoInvestCount(fromValue, target);
+    }
+
+    animateAutoInvestCount(fromValue, target) {
+        if (this.loadedCountEl) this.loadedCountEl.classList.add('is-rolling');
+        const duration = this.autoInvestRollMs;
+        const start = performance.now();
+        const tick = (now) => {
+            if (!this.autoInvestRunning) return;
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            this.autoInvestAnimValue = Math.round(fromValue + (target - fromValue) * eased);
+            if (this.loadedCountEl) this.loadedCountEl.textContent = `${this.autoInvestAnimValue}`;
+            if (t < 1) {
+                this.autoInvestAnimFrame = requestAnimationFrame(tick);
+                return;
+            }
+            this.autoInvestAnimFrame = null;
+            this.finishAutoInvestInsert(target, { startGame: true });
+        };
+        this.autoInvestAnimFrame = requestAnimationFrame(tick);
+    }
+
+    finishAutoInvestInsert(target, { startGame = true } = {}) {
+        this.autoInvestRunning = false;
+        this.autoInvestAnimValue = null;
+        this.currentBet = target;
+        if (this.loadedCountEl) this.loadedCountEl.classList.remove('is-rolling');
+        this.updateHUD();
+        this.updateAutoInvestButton();
+        if (!startGame || this.gameState !== 'IDLE' || this.currentMultiplier !== 0) return;
+        this.onAutoInvestSettled();
+    }
+
+    onAutoInvestSettled() {
+        if (this.currentBet < 5) return;
+        this.highlightStartBtn();
+        this.setStatus(`定投已投入 ${this.currentBet} 颗，点击【开始】抽取倍率`);
+        if (this.autoStartEnabled) this.onStartBtnClicked();
+    }
+
+    scheduleAutoLaunch() {
+        this.cancelAutoLaunch();
+        if (!this.shouldAutoLaunch()) return;
+        this.autoLaunchTimer = setTimeout(() => {
+            this.autoLaunchTimer = null;
+            this.runAutoLaunch();
+        }, this.autoLaunchAfterLockMs);
+    }
+
+    runAutoLaunch() {
+        if (!this.shouldAutoLaunch() || this.isPullingPlunger) return;
+        if (document.querySelector('.modal.active')) return;
+        this.ensureBallStaged();
+        const knob = this.plungerKnob;
+        const duration = this.autoLaunchPullMs;
+        const start = performance.now();
+        const pull = (now) => {
+            if (!this.shouldAutoLaunch() || this.isPullingPlunger) return;
+            const t = Math.min(1, (now - start) / duration);
+            const dist = 60 * t;
+            this.physics.setPlungerPull(dist);
+            if (knob) knob.style.transform = `translateY(${dist}px)`;
+            if (this.plungerSpringVisual) {
+                this.plungerSpringVisual.style.transform = `scaleY(${1 - (dist / 60) * 0.45})`;
+            }
+            if (t < 1) {
+                this.autoLaunchFrame = requestAnimationFrame(pull);
+                return;
+            }
+            this.autoLaunchFrame = null;
+            window.soundEngine.playSpringPull(1);
+            this.physics.releasePlunger();
+            if (knob) knob.style.transform = 'translateY(0px)';
+            if (this.plungerSpringVisual) this.plungerSpringVisual.style.transform = 'scaleY(1)';
+        };
+        this.autoLaunchFrame = requestAnimationFrame(pull);
+    }
+
+    selectAutoInvestChip(chip) {
+        window.soundEngine.playBtnClick();
+        document.querySelectorAll('.auto-invest-chip').forEach((el) => el.classList.remove('selected'));
+        chip.classList.add('selected');
+        const amount = parseInt(chip.dataset.amount, 10);
+        const custom = document.getElementById('auto-invest-custom-amount');
+        if (!custom) return;
+        if (amount > 0) custom.value = String(amount);
+        else custom.value = '';
+    }
+
+    onAutoInvestCustomInput() {
+        const custom = document.getElementById('auto-invest-custom-amount');
+        const amount = parseInt(custom && custom.value, 10);
+        document.querySelectorAll('.auto-invest-chip').forEach((el) => {
+            const chipAmount = parseInt(el.dataset.amount, 10);
+            el.classList.toggle('selected', Number.isInteger(amount) && amount === chipAmount);
+        });
+    }
+
+    syncAutoInvestModal() {
+        const custom = document.getElementById('auto-invest-custom-amount');
+        const autoStart = document.getElementById('toggle-auto-start');
+        if (custom) custom.value = this.autoInvestEnabled ? String(this.autoInvestAmount) : '';
+        if (autoStart) autoStart.checked = this.autoStartEnabled;
+        document.querySelectorAll('.auto-invest-chip').forEach((el) => {
+            const chipAmount = parseInt(el.dataset.amount, 10);
+            const selected = this.autoInvestEnabled
+                ? chipAmount === this.autoInvestAmount
+                : chipAmount === 0;
+            el.classList.toggle('selected', selected);
+        });
+        if (this.autoInvestEnabled && ![5, 10, 20, 50].includes(this.autoInvestAmount)) {
+            document.querySelectorAll('.auto-invest-chip').forEach((el) => el.classList.remove('selected'));
+        }
+    }
+
+    openAutoInvestModal() {
+        window.soundEngine.playBtnClick();
+        this.syncAutoInvestModal();
+        const modal = document.getElementById('auto-invest-modal');
+        if (modal) modal.classList.add('active');
+    }
+
+    confirmAutoInvest() {
+        const custom = document.getElementById('auto-invest-custom-amount');
+        const autoStart = document.getElementById('toggle-auto-start');
+        const offChip = document.querySelector('.auto-invest-chip.is-off.selected');
+        const selectedChip = document.querySelector('.auto-invest-chip.selected:not(.is-off)');
+        const typed = parseInt(custom && custom.value, 10);
+
+        let enabled = this.autoInvestEnabled;
+        let amount = this.autoInvestAmount;
+        if (offChip) {
+            enabled = false;
+        } else if (selectedChip) {
+            enabled = true;
+            amount = this.clampAutoInvestAmount(selectedChip.dataset.amount);
+        } else if (Number.isInteger(typed) && typed >= 5 && typed <= 99) {
+            enabled = true;
+            amount = typed;
+        } else if (enabled) {
+            amount = this.clampAutoInvestAmount(amount);
+        } else {
+            this.setStatus('请选择 5 / 10 / 20 / 50，或输入 5~99 颗', true);
+            return;
+        }
+
+        this.autoInvestEnabled = enabled;
+        this.autoInvestAmount = amount;
+        this.autoStartEnabled = !!(autoStart && autoStart.checked);
+        this.autoInvestPaused = false;
+        this.saveAutoInvestSettings();
+        this.updateAutoInvestButton();
+        this.closeModal('auto-invest-modal');
+
+        if (!enabled) {
+            this.cancelAutoPlay();
+            this.setStatus('定投已关闭');
+            return;
+        }
+
+        const startHint = this.autoStartEnabled ? '，自动开局已开启' : '';
+        this.setStatus(`定投已设为每局 ${amount} 颗${startHint}`, true);
+        if (this.gameState === 'READY_TO_LAUNCH' && this.autoStartEnabled) {
+            this.scheduleAutoLaunch();
+            return;
+        }
+        this.scheduleAutoInvest(0);
     }
 
     // 事件绑定
@@ -1055,6 +1457,21 @@ class PinballGame {
             btnStart.addEventListener('click', () => this.onStartBtnClicked());
         }
 
+        const btnAutoInvest = document.getElementById('btn-auto-invest');
+        if (btnAutoInvest) {
+            btnAutoInvest.addEventListener('click', () => this.openAutoInvestModal());
+        }
+        document.querySelectorAll('.auto-invest-chip').forEach((chip) => {
+            chip.addEventListener('click', () => this.selectAutoInvestChip(chip));
+        });
+        const customAmount = document.getElementById('auto-invest-custom-amount');
+        if (customAmount) {
+            customAmount.addEventListener('input', () => this.onAutoInvestCustomInput());
+            customAmount.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') this.confirmAutoInvest();
+            });
+        }
+
         // 免费加珠 (管理密码来自全部机器配置)
         const btnFree = document.getElementById('btn-free-beads');
         if (btnFree) {
@@ -1081,13 +1498,6 @@ class PinballGame {
         const slotLever = document.getElementById('cat-slot-lever');
         if (slotLever) {
             slotLever.addEventListener('click', () => this.spinCatSlot());
-        }
-
-        const highElasticToggle = document.getElementById('toggle-high-elastic');
-        if (highElasticToggle) {
-            highElasticToggle.addEventListener('change', () => {
-                this.setHighElasticEnabled(highElasticToggle.checked);
-            });
         }
 
         const btnHome = document.getElementById('btn-home');
@@ -1124,6 +1534,7 @@ class PinballGame {
                     return;
                 }
             }
+            this.cancelAutoLaunch();
             this.isPullingPlunger = true;
             this.pullStartY = clientY;
             this.lastSoundPullDist = 0;
@@ -1212,6 +1623,7 @@ class PinballGame {
                     }
                 }
                 e.preventDefault();
+                this.cancelAutoLaunch();
                 spacePressed = true;
                 spaceCharge = 0;
 
@@ -1366,6 +1778,8 @@ class PinballGame {
             this.pendingRoundReset = true;
             return;
         }
+        this.cancelAutoLaunch();
+        this.clearStartReady();
         this.collectTrayBeads();
         this.currentBet = 0;
         this.currentMultiplier = 0;
@@ -1375,6 +1789,13 @@ class PinballGame {
         this.physics.clearLitSlots();
         this.updateHUD();
 
+        // 当局已结算：进度条满了就在此时开启 Fever，不打断上一局
+        if (this.pendingFever) {
+            this.gameState = 'IDLE';
+            this.startFever();
+            return;
+        }
+
         if (this.pendingCatSlot) {
             this.pendingCatSlot = false;
             this.startCatSlot();
@@ -1383,22 +1804,7 @@ class PinballGame {
 
         this.gameState = 'IDLE';
         this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
-    }
-
-    syncHighElasticToggle() {
-        const toggle = document.getElementById('toggle-high-elastic');
-        const switchEl = document.getElementById('high-elastic-switch');
-        if (toggle) toggle.checked = this.highElasticEnabled;
-        if (switchEl) switchEl.classList.toggle('is-on', this.highElasticEnabled);
-    }
-
-    setHighElasticEnabled(enabled) {
-        this.highElasticEnabled = !!enabled;
-        localStorage.setItem('hpb_high_elastic_enabled', this.highElasticEnabled ? 'true' : 'false');
-        this.syncHighElasticToggle();
-        this.applyHighElasticPins();
-        window.soundEngine.playBtnClick();
-        this.setStatus(this.highElasticEnabled ? '高弹已开启：本局随机 8 颗高弹力钉' : '高弹已关闭', true);
+        this.scheduleAutoInvest();
     }
 
     applyHighElasticPins() {
@@ -1437,6 +1843,7 @@ class PinballGame {
     }
 
     startCatSlot() {
+        this.cancelAutoPlay();
         this.gameState = 'CAT_SLOT';
         this.catSlotSpinning = false;
         this.clearCatSlotTimers();
@@ -1596,9 +2003,11 @@ class PinballGame {
             this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
         }
         this.updateSlotProgressUI();
+        this.scheduleAutoInvest();
     }
 
     grantFreeLaunch(mult) {
+        this.cancelAutoPlay();
         this.isFreeLaunch = true;
         this.currentBet = this.freeLaunchBet;
         this.lockMultiplier(mult);
@@ -1616,7 +2025,28 @@ class PinballGame {
         this.feverEnergy = Math.min(100, this.feverEnergy + actual);
         localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
         this.updateFeverUI();
-        if (this.feverEnergy >= 100) this.startFever();
+        if (this.feverEnergy >= 100) this.requestFever();
+    }
+
+    shouldDeferFeverStart() {
+        return this.feverActive ||
+            this.gameState === 'BALL_IN_PLAY' ||
+            this.gameState === 'RESOLVING' ||
+            this.gameState === 'MULTIPLIER_ROLLING' ||
+            this.gameState === 'READY_TO_LAUNCH' ||
+            this.gameState === 'CAT_SLOT';
+    }
+
+    requestFever() {
+        if (this.feverActive || this.feverEnergy < 100) return;
+        if (this.shouldDeferFeverStart()) {
+            if (!this.pendingFever) {
+                this.pendingFever = true;
+                this.setStatus('🔥 Fever 已蓄满！当局结算后开启狂欢！', true);
+            }
+            return;
+        }
+        this.startFever();
     }
 
     updateFeverUI() {
@@ -1643,6 +2073,8 @@ class PinballGame {
 
     startFever() {
         if (this.feverActive) return;
+        this.cancelAutoPlay();
+        this.pendingFever = false;
         this.feverActive = true;
         this.feverEnergy = 0;
         localStorage.setItem('hpb_fever_energy', '0');
@@ -1655,12 +2087,7 @@ class PinballGame {
         this.preFeverLitSlots = [...this.litSlots];
         this.preFeverMultiplier = this.currentMultiplier;
 
-        const indices = this.physics.slots.map(slot => slot.index);
-        for (let i = indices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [indices[i], indices[j]] = [indices[j], indices[i]];
-        }
-        const feverLit = indices.slice(0, Math.min(this.feverLitCount, indices.length));
+        const feverLit = this.pickNonAdjacentSlotIndices(this.feverLitCount);
         this.physics.setLitSlots(feverLit, this.feverMultiplier);
         this.physics.feverActive = true;
 
@@ -1748,11 +2175,12 @@ class PinballGame {
         );
         this.updateFeverUI();
 
-        if (this.pendingRoundReset) {
+        if (this.pendingRoundReset || this.pendingCatSlot) {
             this.pendingRoundReset = false;
             setTimeout(() => this.resetRound(), 900);
         } else {
             this.updateHUD();
+            this.scheduleAutoInvest();
         }
     }
 
@@ -1873,6 +2301,11 @@ class PinballGame {
             window.soundEngine.playSlotWin(1);
             this.closeModal('add-beads-modal');
             this.setStatus(`✅ 已向账户「${saved.username}」添加 ${addNum} 颗弹珠，当前 ${saved.totalBeads} 颗`, true);
+            if (this.currentUsername === saved.username && this.autoInvestEnabled) {
+                this.autoInvestPaused = false;
+                this.updateAutoInvestButton();
+                this.scheduleAutoInvest();
+            }
         } catch (e) {
             alert(e.message || '加珠失败，请重试。');
         }
@@ -1928,11 +2361,13 @@ class PinballGame {
 
     populateGlobalSettingsFields() {
         const soundToggle = document.getElementById('toggle-sound');
+        const highElasticToggle = document.getElementById('toggle-high-elastic');
         const inputT = document.getElementById('config-param-t');
         const inputJ = document.getElementById('config-param-j');
         const probabilityInputs = [2, 4, 6, 8, 10].map(m => document.getElementById(`prob-mult-${m}`));
 
         if (soundToggle) soundToggle.checked = window.soundEngine.enabled;
+        if (highElasticToggle) highElasticToggle.checked = !!this.highElasticEnabled;
         if (inputT) inputT.value = this.configT;
         if (inputJ) inputJ.value = this.configJ;
         probabilityInputs.forEach((input, index) => {
@@ -1974,6 +2409,7 @@ class PinballGame {
         const inputT = document.getElementById('config-param-t');
         const inputJ = document.getElementById('config-param-j');
         const soundToggle = document.getElementById('toggle-sound');
+        const highElasticToggle = document.getElementById('toggle-high-elastic');
         const inputBeads = document.getElementById('config-total-beads');
         const inputScore = document.getElementById('config-total-score');
         const newPasswordInput = document.getElementById('config-new-password');
@@ -2019,6 +2455,11 @@ class PinballGame {
         this.multiplierProbabilities = nextProbabilities;
         if (nextPassword) this.adminPassword = nextPassword;
         window.soundEngine.enabled = soundToggle ? soundToggle.checked : window.soundEngine.enabled;
+        const nextHighElastic = highElasticToggle ? highElasticToggle.checked : this.highElasticEnabled;
+        const highElasticChanged = this.highElasticEnabled !== !!nextHighElastic;
+        this.highElasticEnabled = !!nextHighElastic;
+        if (highElasticChanged) this.applyHighElasticPins();
+        localStorage.setItem('hpb_high_elastic_enabled', this.highElasticEnabled ? 'true' : 'false');
         const syncedToServer = await this.saveGlobalConfig(this.getGlobalConfig());
 
         this.updateHUD();
@@ -2102,6 +2543,7 @@ class PinballGame {
                 this.pendingRoundReset = false;
                 this.endFever();
             }
+            this.pendingFever = false;
             this.feverEnergy = 0;
             this.feverRoundGain = 0;
             localStorage.setItem('hpb_fever_energy', '0');
@@ -2110,12 +2552,15 @@ class PinballGame {
             this.pendingCatSlot = false;
             this.isFreeLaunch = false;
             localStorage.setItem('hpb_slot_win_count', '0');
+            this.gameState = 'IDLE';
             this.closeCatSlot();
             this.updateSlotProgressUI();
+            this.cancelAutoPlay();
             this.updateHUD();
             await this.persistCurrentAccount(true);
             this.closeModal('setting-modal');
             this.setStatus(`账户「${this.currentUsername}」的弹珠和积分已重置为 0`);
+            this.scheduleAutoInvest();
         }
     }
 

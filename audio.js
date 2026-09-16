@@ -117,6 +117,39 @@ class SoundEngine {
         osc.stop(now + 0.045);
     }
 
+    // 定投一次性入币：短促机械仓门 + 集中三连撞击，避免连响 N 次
+    playAutoInvestBurst() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+
+        const thump = this.ctx.createOscillator();
+        const thumpGain = this.ctx.createGain();
+        thump.type = 'sine';
+        thump.frequency.setValueAtTime(240, now);
+        thump.frequency.exponentialRampToValueAtTime(88, now + 0.09);
+        thumpGain.gain.setValueAtTime(0.24, now);
+        thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+        thump.connect(thumpGain);
+        thumpGain.connect(this.ctx.destination);
+        thump.start(now);
+        thump.stop(now + 0.14);
+
+        [0, 0.028, 0.056].forEach((offset, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1020 - i * 110, now + offset);
+            osc.frequency.exponentialRampToValueAtTime(430 - i * 36, now + offset + 0.07);
+            gain.gain.setValueAtTime(0.17, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.09);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.1);
+        });
+    }
+
     // 弹簧拉杆蓄力齿轮声 (Ratchet Click)
     playSpringPull(stretch) {
         if (!this.enabled) return;

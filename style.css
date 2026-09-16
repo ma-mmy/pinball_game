@@ -556,68 +556,6 @@ input.text-input-field,
     min-width: 0;
 }
 
-.high-elastic-switch {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    user-select: none;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.high-elastic-switch .switch-label {
-    font-size: 11px;
-    font-weight: 800;
-    color: #554d43;
-    letter-spacing: 0;
-    white-space: nowrap;
-    transition: color 0.15s;
-}
-
-.high-elastic-switch input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.high-elastic-switch .switch-track {
-    position: relative;
-    width: 32px;
-    height: 18px;
-    background: #c8bead;
-    border-radius: 9px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
-    transition: background 0.18s ease;
-    flex-shrink: 0;
-}
-
-.high-elastic-switch .switch-track::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
-    transition: transform 0.18s ease;
-}
-
-.high-elastic-switch input:checked + .switch-track {
-    background: #e57373;
-}
-
-.high-elastic-switch input:checked + .switch-track::after {
-    transform: translateX(14px);
-}
-
-.high-elastic-switch.is-on .switch-label,
-.high-elastic-switch:has(input:checked) .switch-label {
-    color: #d32f2f;
-}
-
 .icon-sub-btn {
     background: none;
     border: none;
@@ -1035,7 +973,7 @@ input.text-input-field,
 .paw-button-container {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 8px;
 }
 
 .paw-insert-cluster {
@@ -1079,6 +1017,87 @@ input.text-input-field,
     color: #ffffff;
     border: 2px solid #b71c1c;
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.paw-btn.red-paw.start-ready {
+    animation: startReadyGlow 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes startReadyGlow {
+    from {
+        filter: brightness(1);
+        box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2), 0 0 8px rgba(255, 213, 79, 0.35);
+    }
+    to {
+        filter: brightness(1.14);
+        box-shadow: 0 6px 0 rgba(183, 28, 28, 0.35), 0 0 18px rgba(255, 224, 102, 0.85);
+    }
+}
+
+/* 定投猫爪：未开启与投珠同色，开启后亮金 */
+.paw-btn.gold-paw {
+    min-width: 62px;
+    padding: 6px 8px 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #ece5d8 100%);
+    color: #3e3831;
+    border: 2px solid #d2c8b7;
+    letter-spacing: 0;
+    font-size: 12px;
+}
+
+.paw-btn.gold-paw span {
+    display: block;
+    white-space: nowrap;
+}
+
+.gold-paw .paw-pad {
+    background: #d8cebd;
+}
+
+.paw-btn.gold-paw.is-on {
+    background: linear-gradient(180deg, #ffe082 0%, #ffb300 58%, #fb8c00 100%);
+    color: #4a2c00;
+    border-color: #ef6c00;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    box-shadow: 0 6px 0 #c66900, 0 8px 14px rgba(255, 160, 0, 0.35);
+    animation: autoInvestGlow 1.35s ease-in-out infinite alternate;
+}
+
+.paw-btn.gold-paw.is-on .paw-pad {
+    background: #d4c09a;
+}
+
+.paw-btn.gold-paw.is-running {
+    animation: autoInvestPulse 0.4s ease-in-out infinite alternate;
+}
+
+.paw-btn.gold-paw.is-paused {
+    animation: none;
+    filter: saturate(0.72);
+}
+
+@keyframes autoInvestGlow {
+    from {
+        filter: brightness(1);
+        box-shadow: 0 6px 0 #c66900, 0 0 8px rgba(255, 193, 7, 0.4);
+    }
+    to {
+        filter: brightness(1.12);
+        box-shadow: 0 6px 0 #c66900, 0 0 16px rgba(255, 224, 102, 0.85);
+    }
+}
+
+@keyframes autoInvestPulse {
+    from { transform: translateY(0) scale(1); }
+    to { transform: translateY(-1px) scale(1.04); }
+}
+
+#loaded-ball-count.is-rolling {
+    display: inline-block;
+    color: #e65100;
+    transform: scale(1.18);
+    text-shadow: 0 0 8px rgba(255, 183, 77, 0.7);
+    transition: transform 0.08s ease-out, color 0.08s;
 }
 
 /* 顶部猫爪肉垫装饰 (4个小肉球) */
@@ -1617,6 +1636,127 @@ input.text-input-field,
     font-weight: 900 !important;
 }
 
+.auto-invest-card {
+    max-width: 340px;
+}
+
+.auto-invest-rules p {
+    font-size: 12px;
+    line-height: 1.55;
+    color: #5c5348;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.auto-invest-rules p:last-child {
+    margin-bottom: 0;
+}
+
+.auto-invest-rules strong {
+    color: #3e3831;
+    font-weight: 900;
+}
+
+.auto-invest-amount-label {
+    margin-top: 12px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 900;
+    color: #4a4136;
+}
+
+.auto-invest-chips {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+.auto-invest-chip {
+    height: 36px;
+    border: 1.5px solid #d2c8b7;
+    border-radius: 10px;
+    background: #fffdf8;
+    color: #4a4136;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 2px 0 #d8cbb6;
+    touch-action: manipulation;
+}
+
+.auto-invest-chip:active {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+.auto-invest-chip.selected {
+    background: linear-gradient(180deg, #ffe082, #ffb300);
+    border-color: #ef6c00;
+    color: #4a2c00;
+    box-shadow: 0 2px 0 #c66900;
+}
+
+.auto-invest-chip.is-off.selected {
+    background: #eceff1;
+    border-color: #90a4ae;
+    color: #546e7a;
+    box-shadow: 0 2px 0 #b0bec5;
+}
+
+.auto-invest-custom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #4a4136;
+}
+
+.auto-invest-custom input {
+    width: 88px;
+    padding: 6px 8px;
+    border: 1.5px solid #d2c8b7;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 900;
+    font-size: 14px;
+}
+
+.auto-invest-switch-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    background: #f4eee1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #4a4136;
+}
+
+.auto-invest-switch-row strong {
+    display: block;
+    font-weight: 900;
+}
+
+.auto-invest-switch-row em {
+    display: block;
+    margin-top: 2px;
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 700;
+    color: #8c8273;
+}
+
+.auto-invest-switch-row input {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
 .settings-value-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1691,11 +1831,6 @@ input.text-input-field,
     .dash-actions-row { padding: 0; gap: 6px; }
     .coin-slot-bar { width: 52px; }
     .sub-btn-group { gap: 5px; }
-    .high-elastic-switch { gap: 3px; }
-    .high-elastic-switch .switch-label { font-size: 10px; }
-    .high-elastic-switch .switch-track { width: 26px; height: 14px; }
-    .high-elastic-switch .switch-track::after { width: 10px; height: 10px; }
-    .high-elastic-switch input:checked + .switch-track::after { transform: translateX(12px); }
     .icon-sub-btn { font-size: 10px; }
     .icon-sub-btn svg { width: 12px; height: 12px; }
     .playfield-container { height: auto; aspect-ratio: 400 / 570; border-radius: 14px; }
@@ -1704,9 +1839,10 @@ input.text-input-field,
     .fever-gauge-tag { font-size: 8px; padding: 1px 5px; }
     .fever-gauge-pct { font-size: 9px; min-width: 36px; }
     .control-deck { margin-top: 8px; padding: 0 2px; gap: 5px; }
-    .paw-button-container { gap: 6px; }
+    .paw-button-container { gap: 4px; }
     .paw-insert-cluster { gap: 3px; }
     .paw-btn { padding: 5px 9px 8px; font-size: 12px; border-radius: 14px; }
+    .paw-btn.gold-paw { min-width: 48px; padding: 5px 3px 7px; font-size: 10px; }
     .multiplier-display-unit { min-width: 44px; padding: 2px 5px; }
     .loaded-indicator { font-size: 13px; gap: 4px; }
     .bet-quick-actions { gap: 3px; }

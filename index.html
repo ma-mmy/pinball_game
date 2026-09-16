@@ -85,11 +85,6 @@
 
                 <!-- 导航与管理入口 -->
                 <div class="sub-btn-group">
-                    <label class="high-elastic-switch" id="high-elastic-switch" title="开关高弹力钉">
-                        <span class="switch-label">高弹</span>
-                        <input type="checkbox" id="toggle-high-elastic" checked>
-                        <span class="switch-track" aria-hidden="true"></span>
-                    </label>
                     <button class="icon-sub-btn" id="btn-home" title="全屏游玩">
                         <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                         <span>全屏</span>
@@ -172,8 +167,18 @@
                 </button>
             </div>
 
-            <!-- 白色【投珠】与红色【开始】猫爪按键 (投珠支持单点+长按) -->
+            <!-- 【定投】【投珠】【开始】猫爪按键 (投珠支持单点+长按) -->
             <div class="paw-button-container">
+                <button type="button" class="paw-btn gold-paw" id="btn-auto-invest" title="定投模式：每局自动投入设定珠数">
+                    <div class="paw-pads-row">
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                        <div class="paw-pad"></div>
+                    </div>
+                    <span id="auto-invest-label">定投</span>
+                </button>
+
                 <div class="paw-insert-cluster">
                     <button type="button" class="paw-btn white-paw" id="btn-insert-ball" title="点击+1，按住连续高速投珠">
                         <div class="paw-pads-row">
@@ -358,6 +363,11 @@
                 <span>🔊 音效开关</span>
                 <input type="checkbox" id="toggle-sound" checked style="width:18px; height:18px;">
             </label>
+            <label style="display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:13px;">
+                <span>⚡ 高弹开关</span>
+                <input type="checkbox" id="toggle-high-elastic" checked style="width:18px; height:18px;">
+            </label>
+            <div style="font-size:10px; color:#8c8273; margin-top:-6px;">开启后每局随机 8 颗高弹力钉</div>
 
             <!-- 参数 T 配置 -->
             <div style="background:#f4eee1; padding:8px 10px; border-radius:10px;">
@@ -464,6 +474,41 @@
         </div>
         <p style="font-size:11px; color:#887d70; text-align:center; margin-bottom:14px;">点击任意弹珠即可切换材质外观！</p>
         <button class="btn-primary-action" onclick="window.game.closeModal('backpack-modal')">确定</button>
+    </div>
+</div>
+
+<!-- 5. 定投模式说明 / 数值选择 -->
+<div class="modal" id="auto-invest-modal">
+    <div class="modal-card auto-invest-card">
+        <div class="modal-header">
+            <h3 class="modal-title">🪙 定投模式说明</h3>
+            <button class="modal-close-btn" onclick="window.game.closeModal('auto-invest-modal')">&times;</button>
+        </div>
+        <div class="auto-invest-rules">
+            <p><strong>省心托管：</strong>设定每局投入珠数（5~99 颗），下局自动扣除并推入底仓，无需反复手动点击。</p>
+            <p><strong>一键开局：</strong>自动灌入完成后，直接点击【开始】抽取倍率即可进入发射阶段。</p>
+            <p><strong>随时调整：</strong>倍率确定后仍可手动追加投珠；若总珠子余额不足，系统将自动暂停定投。</p>
+        </div>
+        <div class="auto-invest-amount-label">每局投入</div>
+        <div class="auto-invest-chips" id="auto-invest-chips">
+            <button type="button" class="auto-invest-chip" data-amount="5">5</button>
+            <button type="button" class="auto-invest-chip" data-amount="10">10</button>
+            <button type="button" class="auto-invest-chip" data-amount="20">20</button>
+            <button type="button" class="auto-invest-chip" data-amount="50">50</button>
+            <button type="button" class="auto-invest-chip is-off" data-amount="0">关闭</button>
+        </div>
+        <label class="auto-invest-custom" for="auto-invest-custom-amount">
+            <span>自定义 (5~99)</span>
+            <input type="number" id="auto-invest-custom-amount" min="5" max="99" inputmode="numeric" placeholder="5~99">
+        </label>
+        <label class="auto-invest-switch-row" for="toggle-auto-start">
+            <span>
+                <strong>自动开始游戏</strong>
+                <em>投珠 → 开始 → 满力发射</em>
+            </span>
+            <input type="checkbox" id="toggle-auto-start">
+        </label>
+        <button class="btn-primary-action" style="margin-top:14px;" onclick="window.game.confirmAutoInvest()">确定保存</button>
     </div>
 </div>
 
