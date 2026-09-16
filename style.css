@@ -929,7 +929,7 @@ input.text-input-field,
 }
 
 .bet-quick-btn {
-    min-width: 30px;
+    min-width: 0;
     height: 24px;
     padding: 0;
     border: 1.5px solid #c7bba8;
@@ -969,8 +969,9 @@ input.text-input-field,
     gap: 3px;
 }
 
-/* 3D 猫爪造型交互按钮 (投珠 / 开始) */
+/* 3D 猫爪造型交互按钮 (定投 / 投珠 / 开始 同尺寸) */
 .paw-button-container {
+    --paw-size: 64px;
     display: flex;
     align-items: flex-start;
     gap: 8px;
@@ -980,15 +981,23 @@ input.text-input-field,
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    width: var(--paw-size);
     gap: 4px;
 }
 
 .paw-btn {
     position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: var(--paw-size);
+    min-width: var(--paw-size);
+    height: 52px;
     border: none;
     outline: none;
     cursor: pointer;
-    padding: 6px 14px 10px 14px;
+    padding: 6px 4px 8px;
     border-radius: 18px;
     font-size: 14px;
     font-weight: 900;
@@ -997,6 +1006,14 @@ input.text-input-field,
     transition: transform 0.08s, box-shadow 0.08s;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+}
+
+.paw-btn span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    line-height: 1.15;
 }
 
 .paw-btn:active {
@@ -1034,20 +1051,11 @@ input.text-input-field,
     }
 }
 
-/* 定投猫爪：未开启与投珠同色，开启后亮金 */
+/* 定投猫爪：尺寸与投珠一致，未开启同色，开启后亮金 */
 .paw-btn.gold-paw {
-    min-width: 62px;
-    padding: 6px 8px 10px;
     background: linear-gradient(180deg, #ffffff 0%, #ece5d8 100%);
     color: #3e3831;
     border: 2px solid #d2c8b7;
-    letter-spacing: 0;
-    font-size: 12px;
-}
-
-.paw-btn.gold-paw span {
-    display: block;
-    white-space: nowrap;
 }
 
 .gold-paw .paw-pad {
@@ -1058,6 +1066,8 @@ input.text-input-field,
     background: linear-gradient(180deg, #ffe082 0%, #ffb300 58%, #fb8c00 100%);
     color: #4a2c00;
     border-color: #ef6c00;
+    font-size: 11px;
+    letter-spacing: 0;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
     box-shadow: 0 6px 0 #c66900, 0 8px 14px rgba(255, 160, 0, 0.35);
     animation: autoInvestGlow 1.35s ease-in-out infinite alternate;
@@ -1180,8 +1190,8 @@ input.text-input-field,
 }
 
 @keyframes knobPulse {
-    from { transform: scale(1); filter: drop-shadow(0 0 0px #ff3333); }
-    to { transform: scale(1.12); filter: drop-shadow(0 0 8px #ff3333); }
+    from { filter: drop-shadow(0 0 0px #ff3333) brightness(1); }
+    to { filter: drop-shadow(0 0 10px #ff3333) brightness(1.18); }
 }
 
 .knob-paw-relief {
@@ -1839,10 +1849,10 @@ input.text-input-field,
     .fever-gauge-tag { font-size: 8px; padding: 1px 5px; }
     .fever-gauge-pct { font-size: 9px; min-width: 36px; }
     .control-deck { margin-top: 8px; padding: 0 2px; gap: 5px; }
-    .paw-button-container { gap: 4px; }
+    .paw-button-container { --paw-size: 54px; gap: 4px; }
     .paw-insert-cluster { gap: 3px; }
-    .paw-btn { padding: 5px 9px 8px; font-size: 12px; border-radius: 14px; }
-    .paw-btn.gold-paw { min-width: 48px; padding: 5px 3px 7px; font-size: 10px; }
+    .paw-btn { height: 46px; padding: 5px 2px 7px; font-size: 12px; border-radius: 14px; }
+    .paw-btn.gold-paw.is-on { font-size: 9px; }
     .multiplier-display-unit { min-width: 44px; padding: 2px 5px; }
     .loaded-indicator { font-size: 13px; gap: 4px; }
     .bet-quick-actions { gap: 3px; }

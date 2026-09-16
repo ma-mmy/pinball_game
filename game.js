@@ -122,6 +122,7 @@ class PinballGame {
         this.isPullingPlunger = false;
         this.pullStartY = 0;
         this.lastSoundPullDist = 0;
+        this.plungerPulseTimer = null;
         this.lastPinSoundAt = 0;
         this.lastBumperSoundAt = 0;
 
@@ -1033,10 +1034,27 @@ class PinballGame {
     }
 
     pulsePlunger() {
-        if (this.plungerKnob) {
-            this.plungerKnob.classList.add('pulse');
-            setTimeout(() => this.plungerKnob.classList.remove('pulse'), 1500);
+        if (!this.plungerKnob || this.isPullingPlunger) return;
+        this.clearPlungerPulse();
+        this.plungerKnob.classList.add('pulse');
+        this.plungerPulseTimer = setTimeout(() => this.clearPlungerPulse(), 1500);
+    }
+
+    clearPlungerPulse() {
+        if (this.plungerPulseTimer) {
+            clearTimeout(this.plungerPulseTimer);
+            this.plungerPulseTimer = null;
         }
+        if (this.plungerKnob) this.plungerKnob.classList.remove('pulse');
+    }
+
+    resetPlungerVisual() {
+        if (this.plungerKnob) this.plungerKnob.style.transform = 'translateY(0px)';
+        if (this.plungerSpringVisual) this.plungerSpringVisual.style.transform = 'scaleY(1)';
+    }
+
+    canChargePlunger() {
+        return this.gameState === 'READY_TO_LAUNCH' || this.gameState === 'MULTIPLIER_ROLLING';
     }
 
     playInsertEffect() {
@@ -1528,12 +1546,13 @@ class PinballGame {
                 this.setStatus('🎰 猫咪拉霸进行中…', true);
                 return;
             }
-            if (this.gameState !== 'READY_TO_LAUNCH') {
+            if (!this.canChargePlunger()) {
                 if (this.currentMultiplier === 0) {
                     this.setStatus('⚠️ 请先投珠 5~99 颗并按【开始】确定倍率后再发射！', true);
-                    return;
                 }
+                return;
             }
+            this.clearPlungerPulse();
             this.cancelAutoLaunch();
             this.isPullingPlunger = true;
             this.pullStartY = clientY;
@@ -1563,12 +1582,12 @@ class PinballGame {
             this.isPullingPlunger = false;
             knob.classList.remove('active');
 
-            this.physics.releasePlunger();
-
-            knob.style.transform = 'translateY(0px)';
-            if (this.plungerSpringVisual) {
-                this.plungerSpringVisual.style.transform = 'scaleY(1)';
+            if (this.gameState === 'READY_TO_LAUNCH') {
+                this.physics.releasePlunger();
+            } else {
+                this.physics.setPlungerPull(0);
             }
+            this.resetPlungerVisual();
         };
 
         knob.addEventListener('mousedown', (e) => {
@@ -1616,13 +1635,14 @@ class PinballGame {
                     this.setStatus('🎰 猫咪拉霸进行中…', true);
                     return;
                 }
-                if (this.gameState !== 'READY_TO_LAUNCH') {
+                if (!this.canChargePlunger()) {
                     if (this.currentMultiplier === 0) {
                         this.setStatus('⚠️ 请先投珠 5~99 颗并按【开始】确定倍率后再发射！', true);
-                        return;
                     }
+                    return;
                 }
                 e.preventDefault();
+                this.clearPlungerPulse();
                 this.cancelAutoLaunch();
                 spacePressed = true;
                 spaceCharge = 0;
@@ -1643,10 +1663,12 @@ class PinballGame {
                 e.preventDefault();
                 spacePressed = false;
                 clearInterval(chargeTimer);
-                this.physics.releasePlunger();
-                if (this.plungerKnob) {
-                    this.plungerKnob.style.transform = 'translateY(0px)';
+                if (this.gameState === 'READY_TO_LAUNCH') {
+                    this.physics.releasePlunger();
+                } else {
+                    this.physics.setPlungerPull(0);
                 }
+                this.resetPlungerVisual();
             }
         });
     }
