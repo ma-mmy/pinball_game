@@ -1,13 +1,13 @@
 {
   "soundEnabled": true,
-  "configT": 20,
+  "configT": 30,
   "configJ": 10,
   "multiplierProbabilities": [
-    42,
-    28.8,
-    12.7,
-    10.8,
-    5.7
+    75,
+    10.6,
+    5.7,
+    6,
+    2.7
   ],
   "password": "ma123456"
 }

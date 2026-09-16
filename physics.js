@@ -249,8 +249,13 @@ class PinballPhysics {
     }
 
     spawnFeverBall(skin = 'classic') {
-        const minX = 36;
-        const maxX = 332;
+        // Top drop band: center of the playfield, ±25% of the full top width.
+        const dropMinX = 36;
+        const dropMaxX = 332;
+        const centerX = (dropMinX + dropMaxX) / 2;
+        const halfSpan = (dropMaxX - dropMinX) * 0.25;
+        const minX = centerX - halfSpan;
+        const maxX = centerX + halfSpan;
         const ball = {
             id: 'fever_' + Date.now() + '_' + Math.random().toString(36).slice(2),
             x: minX + Math.random() * (maxX - minX),
