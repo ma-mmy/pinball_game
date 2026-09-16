@@ -134,6 +134,11 @@ class PinballGame {
         this.updateFeverUI();
         this.updateSlotProgressUI();
 
+        // 刷新率限制：30 / 60 / 0(不限制)，默认不限制
+        this.frameCapStorageKey = 'hpb_frame_cap';
+        this.frameCap = this.loadFrameCap();
+        this.updatePerformanceButton();
+
         // 启动主循环
         this.lastTime = performance.now();
         requestAnimationFrame(this.loop.bind(this));
@@ -1518,12 +1523,26 @@ class PinballGame {
             slotLever.addEventListener('click', () => this.spinCatSlot());
         }
 
+        const btnPerformance = document.getElementById('btn-performance');
+        if (btnPerformance) {
+            btnPerformance.addEventListener('click', () => this.openPerformanceModal());
+        }
+        document.querySelectorAll('.performance-chip').forEach((chip) => {
+            chip.addEventListener('click', () => {
+                const cap = parseInt(chip.dataset.frameCap, 10);
+                this.setFrameCap(cap);
+            });
+        });
+
         const btnHome = document.getElementById('btn-home');
         if (btnHome) {
             btnHome.addEventListener('click', () => this.toggleFullscreen());
         }
         document.addEventListener('fullscreenchange', () => this.updateFullscreenButton());
         document.addEventListener('webkitfullscreenchange', () => this.updateFullscreenButton());
+        document.addEventListener('visibilitychange', () => {
+            this.lastTime = performance.now();
+        });
 
         if (this.catTray) {
             this.catTray.addEventListener('click', () => this.collectTrayBeads());
@@ -2497,6 +2516,49 @@ class PinballGame {
         this.setStatus(`${syncMessage} (T=${this.configT}, J=${this.configJ})${passwordMessage}${accountMessage}`, true);
     }
 
+    loadFrameCap() {
+        const raw = localStorage.getItem(this.frameCapStorageKey);
+        if (raw === '30' || raw === '60' || raw === '0') return parseInt(raw, 10);
+        return 0;
+    }
+
+    frameCapLabel(cap) {
+        if (cap === 30) return '30 帧';
+        if (cap === 0) return '不限制';
+        return '60 帧';
+    }
+
+    updatePerformanceButton() {
+        const button = document.getElementById('btn-performance');
+        if (!button) return;
+        button.title = `刷新率 ${this.frameCapLabel(this.frameCap)}`;
+    }
+
+    updatePerformanceChips() {
+        document.querySelectorAll('.performance-chip').forEach((chip) => {
+            const cap = parseInt(chip.dataset.frameCap, 10);
+            chip.classList.toggle('selected', cap === this.frameCap);
+        });
+    }
+
+    openPerformanceModal() {
+        window.soundEngine.playBtnClick();
+        this.updatePerformanceChips();
+        const modal = document.getElementById('performance-modal');
+        if (modal) modal.classList.add('active');
+    }
+
+    setFrameCap(cap) {
+        const next = (cap === 30 || cap === 60 || cap === 0) ? cap : 0;
+        this.frameCap = next;
+        localStorage.setItem(this.frameCapStorageKey, String(next));
+        this.lastTime = performance.now();
+        this.updatePerformanceButton();
+        this.updatePerformanceChips();
+        this.closeModal('performance-modal');
+        this.setStatus(`刷新率已设为 ${this.frameCapLabel(next)}`);
+    }
+
     toggleFullscreen() {
         window.soundEngine.playBtnClick();
         const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
@@ -2587,14 +2649,19 @@ class PinballGame {
     }
 
     loop(currentTime) {
+        requestAnimationFrame(this.loop.bind(this));
+
+        if (this.frameCap > 0) {
+            const minDelta = 1000 / this.frameCap;
+            if (currentTime - this.lastTime < minDelta - 2) return;
+        }
+
         const dt = (currentTime - this.lastTime) / 1000;
         this.lastTime = currentTime;
 
         this.updateFever(dt);
         this.physics.update(dt);
         this.physics.render();
-
-        requestAnimationFrame(this.loop.bind(this));
     }
 }
 

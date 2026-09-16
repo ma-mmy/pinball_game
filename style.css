@@ -550,7 +550,7 @@ input.text-input-field,
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 5px;
     flex: 1;
     flex-wrap: nowrap;
     min-width: 0;
@@ -1713,6 +1713,45 @@ input.text-input-field,
     box-shadow: 0 2px 0 #b0bec5;
 }
 
+.performance-hint {
+    font-size: 13px;
+    color: #6d6458;
+    font-weight: 700;
+    margin-bottom: 14px;
+    line-height: 1.45;
+}
+
+.performance-chips {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.performance-chip {
+    height: 44px;
+    border: 1.5px solid #d2c8b7;
+    border-radius: 10px;
+    background: #fffdf8;
+    color: #4a4136;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 2px 0 #d8cbb6;
+    touch-action: manipulation;
+}
+
+.performance-chip:active {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+.performance-chip.selected {
+    background: linear-gradient(180deg, #ffe082, #ffb300);
+    border-color: #ef6c00;
+    color: #4a2c00;
+    box-shadow: 0 2px 0 #c66900;
+}
+
 .auto-invest-custom {
     display: flex;
     align-items: center;
@@ -1840,7 +1879,7 @@ input.text-input-field,
     .slot-progress { margin-bottom: 4px; }
     .dash-actions-row { padding: 0; gap: 6px; }
     .coin-slot-bar { width: 52px; }
-    .sub-btn-group { gap: 5px; }
+    .sub-btn-group { gap: 3px; }
     .icon-sub-btn { font-size: 10px; }
     .icon-sub-btn svg { width: 12px; height: 12px; }
     .playfield-container { height: auto; aspect-ratio: 400 / 570; border-radius: 14px; }
