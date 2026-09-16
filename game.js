@@ -1,11 +1,11 @@
 /**
  * HappyPinballGame - 主游戏控制与业务逻辑 V3.0
- * 1. 免费加珠：输入管理密码后设定添加珠子数量（密码可在设置中修改）
+ * 1. 免费加珠：输入管理密码后按用户名给指定账户添加珠子（密码可在设置中修改）
  * 2. 5~99 投珠开局，按开始确定倍率 (2×/4×/6×/8×/10×)，按倍率点亮 12 落点对应灯格
  * 3. 亮灯后发射前可追加投珠 (上限 99)
  * 4. 中奖返珠 = 倍率 × 投珠，积分卡 = min(floor(返珠 / T), J)
  * 5. 点击投珠 +1、快捷投珠 +5/+10，长按高速连续投珠
- * 6. 所有积分珠子默认为 0
+ * 6. 输入用户名进入账户，积分和弹珠跟随账户保存在服务器，换浏览器可继续玩
  */
 class PinballGame {
     constructor() {
@@ -23,11 +23,24 @@ class PinballGame {
         this.coinSlot = document.querySelector('.coin-slot-bar');
         this.hopperExit = document.querySelector('.hopper-exit-chute');
 
-        // 数据存储 (默认全为 0)
-        this.totalScore = parseInt(localStorage.getItem('hpb_total_score_v3') || '0', 10);
-        this.totalBeads = parseInt(localStorage.getItem('hpb_total_beads_v3') || '0', 10);
+        // 账户数据（登录后从服务器/本地账户读取）
+        this.totalScore = 0;
+        this.totalBeads = 0;
         this.rewardBeads = 0;
         this.rewardScore = 0;
+        this.currentUsername = null;
+        this.accountUpdatedAt = 0;
+        this.accountDirty = false;
+        this.accountSaveTimer = null;
+        this.accountPollTimer = null;
+        this.accountSaving = false;
+        this.accountLoading = false;
+        this.usingServerAccounts = false;
+        this.accountNameLabelEl = document.getElementById('account-name-label');
+        this.accountSyncHintEl = document.getElementById('account-sync-hint');
+        this.lastUsernameStorageKey = 'hpb_last_username';
+        this.localAccountsStorageKey = 'hpb_accounts_v1';
+        this.accountMigratedStorageKey = 'hpb_account_migrated_v1';
 
         // 全局规则由所有机器共享；弹珠和积分仍保存在当前机器。
         this.globalConfigStorageKey = 'hpb_global_config_v1';
@@ -47,7 +60,7 @@ class PinballGame {
         this.feverActive = false;
         this.feverTimeLeft = 0;
         this.feverDuration = 10;
-        this.feverMultiplier = 10;
+        this.feverMultiplier = 2;
         this.feverLitCount = 6;
         this.feverSpawnTotal = 0;
         this.feverSpawned = 0;
@@ -95,6 +108,7 @@ class PinballGame {
         this.initUI();
         this.initEventListeners();
         this.initGlobalConfigSync();
+        this.initAccountSystem();
         this.syncHighElasticToggle();
         this.updateHUD();
         this.updateFeverUI();
@@ -110,7 +124,8 @@ class PinballGame {
         this.setStatus('等待开始 (请投入 5~99 颗弹珠开局)');
     }
 
-    updateHUD() {
+    updateHUD(options = {}) {
+        const persist = options.persist !== false;
         this.totalScoreEl.textContent = this.totalScore;
         this.totalBeadsEl.textContent = this.totalBeads;
         this.rewardBeadsEl.textContent = this.rewardBeads;
@@ -133,8 +148,7 @@ class PinballGame {
             }
         }
 
-        localStorage.setItem('hpb_total_score_v3', this.totalScore);
-        localStorage.setItem('hpb_total_beads_v3', this.totalBeads);
+        if (persist && this.currentUsername) this.persistCurrentAccount(false);
     }
 
     getDefaultGlobalConfig() {
@@ -284,6 +298,496 @@ class PinballGame {
         }
     }
 
+    // ==========================================
+    // 账户系统：用户名登录，积分/弹珠跟随账户
+    // ==========================================
+    hasHttpOrigin() {
+        return /^https?:$/.test(window.location.protocol);
+    }
+
+    isValidUsername(username) {
+        return typeof username === 'string' && /^[\u4e00-\u9fffA-Za-z0-9_-]{1,20}$/.test(username);
+    }
+
+    normalizeUsername(value) {
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    isRoundBusy() {
+        return this.feverActive ||
+            this.gameState === 'BALL_IN_PLAY' ||
+            this.gameState === 'RESOLVING' ||
+            this.gameState === 'MULTIPLIER_ROLLING' ||
+            this.gameState === 'CAT_SLOT';
+    }
+
+    requireLogin() {
+        if (this.currentUsername) return true;
+        if (this.accountLoading) {
+            this.setStatus('正在登录账户…', true);
+            return false;
+        }
+        this.openLoginModal(true);
+        this.setStatus('请先输入用户名登录账户', true);
+        return false;
+    }
+
+    getLocalAccounts() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(this.localAccountsStorageKey) || '{}');
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    writeLocalAccount(account) {
+        if (!account || !account.username) return;
+        const all = this.getLocalAccounts();
+        all[account.username] = {
+            username: account.username,
+            totalBeads: account.totalBeads,
+            totalScore: account.totalScore,
+            updatedAt: account.updatedAt || Date.now()
+        };
+        localStorage.setItem(this.localAccountsStorageKey, JSON.stringify(all));
+    }
+
+    snapshotCurrentAccount() {
+        return {
+            username: this.currentUsername,
+            totalBeads: this.totalBeads,
+            totalScore: this.totalScore,
+            updatedAt: this.accountUpdatedAt || Date.now()
+        };
+    }
+
+    consumeLegacyMachineData() {
+        if (localStorage.getItem(this.accountMigratedStorageKey)) {
+            return { beads: 0, score: 0 };
+        }
+        const beads = parseInt(localStorage.getItem('hpb_total_beads_v3') || '0', 10) || 0;
+        const score = parseInt(localStorage.getItem('hpb_total_score_v3') || '0', 10) || 0;
+        localStorage.setItem(this.accountMigratedStorageKey, '1');
+        return {
+            beads: Number.isFinite(beads) && beads > 0 ? beads : 0,
+            score: Number.isFinite(score) && score > 0 ? score : 0
+        };
+    }
+
+    applyAccountData(account, { silent = false } = {}) {
+        this.currentUsername = account.username;
+        this.totalBeads = account.totalBeads;
+        this.totalScore = account.totalScore;
+        this.accountUpdatedAt = account.updatedAt || Date.now();
+        this.accountDirty = false;
+        localStorage.setItem(this.lastUsernameStorageKey, account.username);
+        this.writeLocalAccount(account);
+        this.updateAccountBar();
+        this.updateHUD({ persist: false });
+        if (!silent) {
+            this.setStatus(`已进入账户「${account.username}」`, true);
+        }
+    }
+
+    updateAccountBar() {
+        if (this.accountNameLabelEl) {
+            this.accountNameLabelEl.textContent = this.currentUsername || (this.accountLoading ? '登录中…' : '未登录');
+        }
+        if (this.accountSyncHintEl) {
+            if (this.accountLoading) {
+                this.accountSyncHintEl.textContent = '正在登录账户';
+            } else if (!this.currentUsername) {
+                this.accountSyncHintEl.textContent = '请先登录账户';
+            } else if (this.usingServerAccounts) {
+                this.accountSyncHintEl.textContent = '已同步到服务器';
+            } else {
+                this.accountSyncHintEl.textContent = '仅保存在本浏览器';
+            }
+        }
+    }
+
+    async apiJson(pathname, options = {}) {
+        if (!this.hasHttpOrigin()) {
+            const error = new Error('no-server');
+            error.code = 'no-server';
+            throw error;
+        }
+        const response = await fetch(pathname, {
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+            ...options
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const error = new Error(data.error || `HTTP ${response.status}`);
+            error.status = response.status;
+            error.payload = data;
+            throw error;
+        }
+        return data;
+    }
+
+    initAccountSystem() {
+        this.updateAccountBar();
+        window.addEventListener('pagehide', () => this.persistCurrentAccount(true));
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') this.persistCurrentAccount(true);
+        });
+        if (this.accountPollTimer) clearInterval(this.accountPollTimer);
+        this.accountPollTimer = setInterval(() => this.pullCurrentAccount(), 5000);
+
+        const lastUsername = this.normalizeUsername(localStorage.getItem(this.lastUsernameStorageKey) || '');
+        if (lastUsername && this.isValidUsername(lastUsername)) {
+            this.accountLoading = true;
+            this.updateAccountBar();
+            this.loginWithUsername(lastUsername, { silent: true })
+                .catch(() => this.openLoginModal(true))
+                .finally(() => {
+                    this.accountLoading = false;
+                    this.updateAccountBar();
+                });
+            return;
+        }
+        this.openLoginModal(true);
+    }
+
+    openLoginModal(required = false) {
+        const modal = document.getElementById('login-modal');
+        const closeBtn = document.getElementById('login-modal-close');
+        const title = document.getElementById('login-modal-title');
+        const intro = document.getElementById('login-intro');
+        const input = document.getElementById('login-username');
+        const error = document.getElementById('login-error');
+        const hint = document.getElementById('login-server-hint');
+        if (!modal || !input) return;
+
+        const switching = !required && !!this.currentUsername;
+        if (title) title.textContent = switching ? '🐱 切换账户' : '🐱 登录账户';
+        if (intro) {
+            intro.textContent = switching
+                ? '输入另一个用户名即可切换账户。当前账户的积分和弹珠会先保存。'
+                : '输入用户名进入专属账户。积分和弹珠会保存在账户里，换浏览器也能继续玩。';
+        }
+        if (closeBtn) closeBtn.style.display = switching ? 'block' : 'none';
+        if (error) error.style.display = 'none';
+        input.value = this.currentUsername || this.normalizeUsername(localStorage.getItem(this.lastUsernameStorageKey) || '');
+        if (hint) {
+            hint.textContent = this.hasHttpOrigin()
+                ? '用户名 1~20 个字，支持中文、字母、数字、下划线和短横线。'
+                : '当前未使用共享服务，账户只保存在本浏览器。请用 node server.js 启动后即可跨浏览器同步。';
+        }
+        modal.dataset.required = required ? '1' : '0';
+        modal.classList.add('active');
+        setTimeout(() => input.focus(), 120);
+    }
+
+    async submitLogin() {
+        const input = document.getElementById('login-username');
+        const error = document.getElementById('login-error');
+        const username = this.normalizeUsername(input ? input.value : '');
+        if (!this.isValidUsername(username)) {
+            if (error) {
+                error.textContent = '用户名需为 1~20 个中文、字母、数字、下划线或短横线。';
+                error.style.display = 'block';
+            }
+            return;
+        }
+        if (this.currentUsername === username) {
+            this.closeModal('login-modal');
+            return;
+        }
+        if (this.currentUsername && this.isRoundBusy()) {
+            if (error) {
+                error.textContent = '对局进行中，请先完成本局再切换账户。';
+                error.style.display = 'block';
+            }
+            return;
+        }
+        try {
+            await this.loginWithUsername(username);
+            this.closeModal('login-modal');
+        } catch (e) {
+            if (error) {
+                error.textContent = e.message || '登录失败，请重试。';
+                error.style.display = 'block';
+            }
+        }
+    }
+
+    async loginWithUsername(rawUsername, { silent = false } = {}) {
+        const username = this.normalizeUsername(rawUsername);
+        if (!this.isValidUsername(username)) {
+            throw new Error('用户名不合法');
+        }
+
+        if (this.currentUsername && this.currentUsername !== username) {
+            this.refundPendingBet();
+            await this.persistCurrentAccount(true);
+        }
+
+        let account = null;
+        let created = false;
+        try {
+            const result = await this.apiJson('/api/accounts/login', {
+                method: 'POST',
+                body: JSON.stringify({ username })
+            });
+            account = result;
+            created = !!result.created;
+            this.usingServerAccounts = true;
+        } catch (e) {
+            this.usingServerAccounts = false;
+            const local = this.getLocalAccounts()[username];
+            if (local) {
+                account = local;
+            } else {
+                account = {
+                    username,
+                    totalBeads: 0,
+                    totalScore: 0,
+                    updatedAt: Date.now()
+                };
+                created = true;
+            }
+        }
+
+        const legacy = this.consumeLegacyMachineData();
+        if ((created || (account.totalBeads === 0 && account.totalScore === 0)) && (legacy.beads || legacy.score)) {
+            account.totalBeads += legacy.beads;
+            account.totalScore += legacy.score;
+            account.updatedAt = Date.now();
+            await this.saveAccountRecord(account);
+        }
+
+        this.rewardBeads = 0;
+        this.rewardScore = 0;
+        this.currentBet = 0;
+        this.currentMultiplier = 0;
+        this.litSlots = [];
+        this.physics.clearLitSlots();
+        this.applyAccountData(account, { silent });
+        return account;
+    }
+
+    refundPendingBet() {
+        if (this.currentBet > 0) {
+            this.totalBeads += this.currentBet;
+            this.currentBet = 0;
+        }
+        this.collectTrayBeads();
+    }
+
+    persistCurrentAccount(immediate = false) {
+        if (!this.currentUsername) return Promise.resolve(false);
+        this.accountDirty = true;
+        this.writeLocalAccount(this.snapshotCurrentAccount());
+        if (immediate) {
+            clearTimeout(this.accountSaveTimer);
+            this.accountSaveTimer = null;
+            if (this.accountSaving) return Promise.resolve(false);
+            return this.flushAccountSave();
+        }
+        clearTimeout(this.accountSaveTimer);
+        this.accountSaveTimer = setTimeout(() => this.flushAccountSave(), 400);
+        return Promise.resolve(true);
+    }
+
+    async flushAccountSave() {
+        if (!this.currentUsername || this.accountSaving) return false;
+        this.accountSaving = true;
+        try {
+            do {
+                this.accountDirty = false;
+                const account = this.snapshotCurrentAccount();
+                const saved = await this.saveAccountRecord(account);
+                if (saved) {
+                    this.accountUpdatedAt = saved.updatedAt || Date.now();
+                    this.writeLocalAccount({ ...account, updatedAt: this.accountUpdatedAt });
+                    this.updateAccountBar();
+                }
+            } while (this.accountDirty && this.currentUsername);
+            return true;
+        } finally {
+            this.accountSaving = false;
+        }
+    }
+
+    async saveAccountRecord(account) {
+        this.writeLocalAccount(account);
+        if (!this.hasHttpOrigin()) return account;
+        try {
+            const saved = await this.apiJson(`/api/accounts/${encodeURIComponent(account.username)}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    totalBeads: account.totalBeads,
+                    totalScore: account.totalScore
+                })
+            });
+            this.usingServerAccounts = true;
+            return saved;
+        } catch (e) {
+            this.usingServerAccounts = false;
+            this.updateAccountBar();
+            return account;
+        }
+    }
+
+    async pullCurrentAccount() {
+        if (!this.currentUsername || !this.usingServerAccounts || this.accountDirty || this.accountSaving ||
+            this.isRoundBusy() || this.currentBet > 0 || this.rewardBeads > 0) {
+            return false;
+        }
+        try {
+            const account = await this.apiJson(`/api/accounts/${encodeURIComponent(this.currentUsername)}`);
+            if (!account || account.username !== this.currentUsername) return false;
+            if (account.updatedAt && account.updatedAt > this.accountUpdatedAt &&
+                (account.totalBeads !== this.totalBeads || account.totalScore !== this.totalScore)) {
+                this.applyAccountData(account, { silent: true });
+                this.setStatus(`账户「${account.username}」数据已从服务器更新`, true);
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async fetchAccount(username) {
+        const name = this.normalizeUsername(username);
+        if (!this.isValidUsername(name)) throw new Error('用户名不合法');
+        if (this.hasHttpOrigin()) {
+            try {
+                return await this.apiJson(`/api/accounts/${encodeURIComponent(name)}`);
+            } catch (e) {
+                if (e.status === 404) throw new Error('账户不存在');
+                if (e.code !== 'no-server') throw e;
+            }
+        }
+        const local = this.getLocalAccounts()[name];
+        if (!local) throw new Error('账户不存在');
+        return local;
+    }
+
+    async adminUpdateAccount(username, payload) {
+        const name = this.normalizeUsername(username);
+        if (!this.isValidUsername(name)) throw new Error('用户名不合法');
+
+        if (this.hasHttpOrigin()) {
+            try {
+                const saved = await this.apiJson('/api/accounts/admin', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        username: name,
+                        password: this.adminPassword,
+                        ...payload
+                    })
+                });
+                this.writeLocalAccount(saved);
+                this.usingServerAccounts = true;
+                return saved;
+            } catch (e) {
+                if (e.status === 403) throw new Error('管理密码错误');
+                if (e.code !== 'no-server' && e.status !== 404) {
+                    throw new Error(e.message || '保存失败');
+                }
+            }
+        }
+
+        const existing = this.getLocalAccounts()[name] || {
+            username: name,
+            totalBeads: 0,
+            totalScore: 0,
+            updatedAt: Date.now()
+        };
+        if (payload.totalBeads !== undefined) existing.totalBeads = payload.totalBeads;
+        if (payload.totalScore !== undefined) existing.totalScore = payload.totalScore;
+        if (payload.addBeads) existing.totalBeads = Math.max(0, existing.totalBeads + payload.addBeads);
+        if (payload.addScore) existing.totalScore = Math.max(0, existing.totalScore + payload.addScore);
+        existing.updatedAt = Date.now();
+        this.writeLocalAccount(existing);
+        return existing;
+    }
+
+    async lookupAdminAccount() {
+        const input = document.getElementById('admin-account-username');
+        const error = document.getElementById('admin-account-error');
+        const editor = document.getElementById('admin-account-editor');
+        const found = document.getElementById('admin-account-found');
+        const beadsInput = document.getElementById('admin-account-beads');
+        const scoreInput = document.getElementById('admin-account-score');
+        const username = this.normalizeUsername(input ? input.value : '');
+        if (error) error.style.display = 'none';
+        if (!this.isValidUsername(username)) {
+            if (editor) editor.style.display = 'none';
+            if (error) {
+                error.textContent = '请输入合法用户名后再查询。';
+                error.style.display = 'block';
+            }
+            return;
+        }
+        try {
+            const account = await this.fetchAccount(username);
+            if (editor) editor.style.display = 'block';
+            if (found) found.textContent = `已找到账户「${account.username}」`;
+            if (beadsInput) beadsInput.value = account.totalBeads;
+            if (scoreInput) scoreInput.value = account.totalScore;
+            window.soundEngine.playBtnClick();
+        } catch (e) {
+            if (editor) editor.style.display = 'none';
+            if (error) {
+                error.textContent = e.message === '账户不存在'
+                    ? '账户不存在。可在【加珠】里输入该用户名充入弹珠来创建账户。'
+                    : (e.message || '查询失败');
+                error.style.display = 'block';
+            }
+        }
+    }
+
+    adjustAdminAccountField(field, delta) {
+        const input = document.getElementById(field === 'score' ? 'admin-account-score' : 'admin-account-beads');
+        if (!input) return;
+        const current = parseInt(input.value, 10) || 0;
+        input.value = Math.max(0, current + delta);
+        window.soundEngine.playBtnClick();
+    }
+
+    async saveAdminAccount() {
+        const nameInput = document.getElementById('admin-account-username');
+        const beadsInput = document.getElementById('admin-account-beads');
+        const scoreInput = document.getElementById('admin-account-score');
+        const error = document.getElementById('admin-account-error');
+        const found = document.getElementById('admin-account-found');
+        const username = this.normalizeUsername(nameInput ? nameInput.value : '');
+        const nextBeads = beadsInput ? parseInt(beadsInput.value, 10) : NaN;
+        const nextScore = scoreInput ? parseInt(scoreInput.value, 10) : NaN;
+        if (error) error.style.display = 'none';
+        if (!this.isValidUsername(username) || !Number.isInteger(nextBeads) || nextBeads < 0 ||
+            !Number.isInteger(nextScore) || nextScore < 0) {
+            if (error) {
+                error.textContent = '请先查询账户，并填写大于等于 0 的整数。';
+                error.style.display = 'block';
+            }
+            return;
+        }
+        try {
+            const saved = await this.adminUpdateAccount(username, {
+                totalBeads: nextBeads,
+                totalScore: nextScore
+            });
+            if (found) found.textContent = `已保存账户「${saved.username}」：弹珠 ${saved.totalBeads}，积分 ${saved.totalScore}`;
+            if (this.currentUsername === saved.username) {
+                this.applyAccountData(saved, { silent: true });
+            }
+            window.soundEngine.playSlotWin(1);
+            this.setStatus(`已更新账户「${saved.username}」的积分和弹珠`, true);
+        } catch (e) {
+            if (error) {
+                error.textContent = e.message || '保存失败';
+                error.style.display = 'block';
+            }
+        }
+    }
+
     setStatus(text, isHighlight = false) {
         if (!this.statusTextEl) return;
         this.statusTextEl.textContent = text;
@@ -294,6 +798,7 @@ class PinballGame {
     }
 
     insertBalls(requestedCount = 1) {
+        if (!this.requireLogin()) return false;
         if (this.isFreeLaunch) {
             this.setStatus('🎁 免费发射中，直接拉动拉杆！', true);
             return false;
@@ -338,6 +843,7 @@ class PinballGame {
     // 点击开始按钮
     onStartBtnClicked() {
         window.soundEngine.playBtnClick();
+        if (!this.requireLogin()) return;
 
         if (this.feverActive || this.gameState === 'CAT_SLOT' || this.gameState === 'BALL_IN_PLAY' || this.gameState === 'RESOLVING' || this.gameState === 'MULTIPLIER_ROLLING') {
             return;
@@ -560,6 +1066,14 @@ class PinballGame {
 
         const btnSetting = document.getElementById('btn-settings');
         if (btnSetting) btnSetting.addEventListener('click', () => this.openSettingsPasswordModal());
+
+        const btnAccount = document.getElementById('btn-account');
+        if (btnAccount) {
+            btnAccount.addEventListener('click', () => {
+                window.soundEngine.playBtnClick();
+                this.openLoginModal(!this.currentUsername);
+            });
+        }
 
         const btnBackpack = document.getElementById('btn-backpack');
         if (btnBackpack) btnBackpack.addEventListener('click', () => this.openBackpackModal());
@@ -1304,6 +1818,8 @@ class PinballGame {
         step2.style.display = 'none';
         pwdInput.value = '';
         errorMsg.style.display = 'none';
+        const usernameInput = document.getElementById('add-beads-username');
+        if (usernameInput) usernameInput.value = this.currentUsername || '';
         if (amountInput) amountInput.value = '100';
 
         modal.classList.add('active');
@@ -1331,20 +1847,35 @@ class PinballGame {
         }
     }
 
-    confirmAddBeads() {
+    async confirmAddBeads() {
         const amountInput = document.getElementById('add-beads-amount');
+        const usernameInput = document.getElementById('add-beads-username');
         const addNum = parseInt(amountInput.value, 10);
+        const targetUsername = this.normalizeUsername(usernameInput ? usernameInput.value : this.currentUsername);
 
         if (isNaN(addNum) || addNum <= 0) {
             alert('请输入大于 0 的有效珠子数量！');
             return;
         }
+        if (!this.isValidUsername(targetUsername)) {
+            alert('请输入合法的目标用户名。');
+            return;
+        }
 
-        this.totalBeads += addNum;
-        this.updateHUD();
-        window.soundEngine.playSlotWin(1);
-        this.closeModal('add-beads-modal');
-        this.setStatus(`✅ 成功添加 ${addNum} 颗弹珠！当前总珠子: ${this.totalBeads}`, true);
+        try {
+            if (this.currentUsername === targetUsername) {
+                await this.persistCurrentAccount(true);
+            }
+            const saved = await this.adminUpdateAccount(targetUsername, { addBeads: addNum });
+            if (this.currentUsername === saved.username) {
+                this.applyAccountData(saved, { silent: true });
+            }
+            window.soundEngine.playSlotWin(1);
+            this.closeModal('add-beads-modal');
+            this.setStatus(`✅ 已向账户「${saved.username}」添加 ${addNum} 颗弹珠，当前 ${saved.totalBeads} 颗`, true);
+        } catch (e) {
+            alert(e.message || '加珠失败，请重试。');
+        }
     }
 
     setQuickAddAmount(val) {
@@ -1360,6 +1891,12 @@ class PinballGame {
         window.soundEngine.playBtnClick();
         const modal = document.getElementById('rank-modal');
         const myScoreEl = document.getElementById('my-rank-score');
+        const myRankItem = document.querySelector('#rank-modal .my-rank span');
+        if (myRankItem && myRankItem !== myScoreEl) {
+            myRankItem.textContent = this.currentUsername
+                ? `⭐ 4. ${this.currentUsername} (当前总积分)`
+                : '⭐ 4. 我 (当前总积分)';
+        }
         if (myScoreEl) myScoreEl.textContent = `${this.totalScore} 张卡`;
         modal.classList.add('active');
     }
@@ -1413,6 +1950,18 @@ class PinballGame {
         this.populateGlobalSettingsFields();
         if (inputBeads) inputBeads.value = this.totalBeads;
         if (inputScore) inputScore.value = this.totalScore;
+        const currentHint = document.getElementById('settings-current-account-hint');
+        if (currentHint) {
+            currentHint.textContent = this.currentUsername
+                ? `仅更新账户「${this.currentUsername}」`
+                : '请先登录账户';
+        }
+        const adminName = document.getElementById('admin-account-username');
+        const adminError = document.getElementById('admin-account-error');
+        const adminEditor = document.getElementById('admin-account-editor');
+        if (adminName && !adminName.value && this.currentUsername) adminName.value = this.currentUsername;
+        if (adminError) adminError.style.display = 'none';
+        if (adminEditor) adminEditor.style.display = 'none';
         const newPasswordInput = document.getElementById('config-new-password');
         const confirmPasswordInput = document.getElementById('config-confirm-password');
         if (newPasswordInput) newPasswordInput.value = '';
@@ -1463,20 +2012,26 @@ class PinballGame {
 
         this.configT = nextT;
         this.configJ = nextJ;
-        this.totalBeads = nextBeads;
-        this.totalScore = nextScore;
+        if (this.currentUsername) {
+            this.totalBeads = nextBeads;
+            this.totalScore = nextScore;
+        }
         this.multiplierProbabilities = nextProbabilities;
         if (nextPassword) this.adminPassword = nextPassword;
         window.soundEngine.enabled = soundToggle ? soundToggle.checked : window.soundEngine.enabled;
         const syncedToServer = await this.saveGlobalConfig(this.getGlobalConfig());
 
         this.updateHUD();
+        await this.persistCurrentAccount(true);
         this.closeModal('setting-modal');
         const syncMessage = syncedToServer
             ? '全部机器配置已同步'
             : '配置已保存；使用共享服务启动后可同步到不同机器';
         const passwordMessage = nextPassword ? '；管理密码已更新' : '';
-        this.setStatus(`${syncMessage} (T=${this.configT}, J=${this.configJ})${passwordMessage}；弹珠和积分仅更新当前机器`, true);
+        const accountMessage = this.currentUsername
+            ? `；账户「${this.currentUsername}」的弹珠和积分已保存`
+            : '；请先登录账户后再保存弹珠和积分';
+        this.setStatus(`${syncMessage} (T=${this.configT}, J=${this.configJ})${passwordMessage}${accountMessage}`, true);
     }
 
     toggleFullscreen() {
@@ -1516,6 +2071,7 @@ class PinballGame {
     }
 
     closeModal(id) {
+        if (id === 'login-modal' && !this.currentUsername) return;
         window.soundEngine.playBtnClick();
         const modal = document.getElementById(id);
         if (modal) modal.classList.remove('active');
@@ -1529,8 +2085,12 @@ class PinballGame {
         this.closeModal('backpack-modal');
     }
 
-    resetData() {
-        if (confirm('确定要将当前机器的弹珠和积分重置为 0 吗？其他机器和全局配置不会受影响。')) {
+    async resetData() {
+        if (!this.currentUsername) {
+            alert('请先登录账户。');
+            return;
+        }
+        if (confirm(`确定要将账户「${this.currentUsername}」的弹珠和积分重置为 0 吗？全局配置不会受影响。`)) {
             this.totalScore = 0;
             this.totalBeads = 0;
             this.rewardBeads = 0;
@@ -1553,8 +2113,9 @@ class PinballGame {
             this.closeCatSlot();
             this.updateSlotProgressUI();
             this.updateHUD();
+            await this.persistCurrentAccount(true);
             this.closeModal('setting-modal');
-            this.setStatus('当前机器的弹珠和积分已重置为 0');
+            this.setStatus(`账户「${this.currentUsername}」的弹珠和积分已重置为 0`);
         }
     }
 

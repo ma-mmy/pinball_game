@@ -139,9 +139,130 @@ button {
     box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 193, 7, 0.45);
 }
 
+.dashboard-panel.slot-active .account-bar,
 .dashboard-panel.slot-active .scoreboard-grid,
 .dashboard-panel.slot-active .slot-progress {
     display: none;
+}
+
+.account-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.account-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 68%;
+    border: 1.5px solid #d4cab8;
+    background: #fffdf8;
+    border-radius: 999px;
+    padding: 4px 10px 4px 8px;
+    cursor: pointer;
+    font-weight: 800;
+    color: #4a4136;
+}
+
+.account-chip-label {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #fff;
+    background: #e63946;
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
+.account-chip-name {
+    font-size: 12px;
+    color: #d32f2f;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-sync-hint {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8c8273;
+    text-align: right;
+    line-height: 1.3;
+}
+
+.login-intro,
+.login-hint,
+.field-label,
+.admin-account-found {
+    font-size: 12px;
+    font-weight: 700;
+    color: #6d6458;
+}
+
+.login-intro {
+    margin-bottom: 12px;
+    line-height: 1.45;
+}
+
+.login-hint {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.field-label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #4a4136;
+}
+
+.btn-secondary-action {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    background: #fff;
+    border: 1.5px solid #c8bead;
+    color: #4a4136;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.admin-account-box {
+    background: #f4eee1;
+    padding: 8px 10px 10px;
+    border-radius: 10px;
+}
+
+.admin-account-lookup {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.admin-account-lookup .text-input-field {
+    flex: 1;
+}
+
+.admin-account-found {
+    margin: 10px 0 8px;
+    color: #2e7d32;
+    font-weight: 800;
+}
+
+.admin-account-box .settings-value-grid {
+    padding: 0;
+    background: transparent;
+}
+
+input.text-input-field,
+.settings-value-grid input {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .cat-slot-machine {
@@ -1555,6 +1676,10 @@ button {
     .cat-ear { width: 48px; height: 38px; border-width: 2px; }
     .arcade-cabinet { border-radius: 18px; border-width: 3px; padding: 8px 8px 14px; }
     .dashboard-panel { padding: 7px 8px 6px; margin-bottom: 8px; border-radius: 12px; }
+    .account-bar { margin-bottom: 6px; }
+    .account-chip { max-width: 62%; padding: 3px 8px 3px 6px; }
+    .account-chip-name { font-size: 11px; }
+    .account-sync-hint { font-size: 9px; }
     .scoreboard-grid { gap: 3px; margin-bottom: 4px; }
     .score-label { font-size: 8px; }
     .led-display { font-size: 13px; min-height: 24px; }

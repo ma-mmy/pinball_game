@@ -19,6 +19,14 @@
     <main class="arcade-cabinet">
         <!-- 1. 顶部亚克力数码仪表板 (默认数据全为 0) -->
         <header class="dashboard-panel" id="dashboard-panel">
+            <div class="account-bar" id="account-bar">
+                <button type="button" class="account-chip" id="btn-account" title="登录或切换账户">
+                    <span class="account-chip-label">账户</span>
+                    <span class="account-chip-name" id="account-name-label">未登录</span>
+                </button>
+                <span class="account-sync-hint" id="account-sync-hint">请先登录账户</span>
+            </div>
+
             <div class="scoreboard-grid" id="scoreboard-grid">
                 <div class="score-box">
                     <span class="score-label">总积分</span>
@@ -117,7 +125,7 @@
             <!-- Fever 狂欢覆盖层 -->
             <div class="fever-overlay" id="fever-overlay" aria-hidden="true">
                 <div class="fever-banner">FEVER</div>
-                <div class="fever-sub">狂欢多球 · 随机六孔高倍</div>
+                <div class="fever-sub">狂欢多球 · 随机六孔 2×</div>
             </div>
 
             <!-- 状态信息栏 -->
@@ -225,6 +233,24 @@
 
 <!-- ================= 模态弹窗系统 ================= -->
 
+<!-- 0. 账户登录 / 切换 -->
+<div class="modal" id="login-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title" id="login-modal-title">🐱 登录账户</h3>
+            <button class="modal-close-btn" id="login-modal-close" style="display:none;" onclick="window.game.closeModal('login-modal')">&times;</button>
+        </div>
+        <p class="login-intro" id="login-intro">
+            输入用户名进入专属账户。积分和弹珠会保存在账户里，换浏览器也能继续玩。
+        </p>
+        <input type="text" id="login-username" class="text-input-field" maxlength="20" autocomplete="username"
+            placeholder="请输入用户名" onkeydown="if(event.key==='Enter') window.game.submitLogin()" />
+        <div id="login-error" class="error-tip" style="display:none;"></div>
+        <button class="btn-primary-action" style="margin-top:14px;" onclick="window.game.submitLogin()">进入账户</button>
+        <p class="login-hint" id="login-server-hint">用户名 1~20 个字，支持中文、字母、数字、下划线和短横线。</p>
+    </div>
+</div>
+
 <!-- 1. 免费加珠 (管理密码来自全部机器配置) -->
 <div class="modal" id="add-beads-modal">
     <div class="modal-card">
@@ -248,8 +274,11 @@
         <!-- Step 2: 设定添加珠子数量 -->
         <div id="add-beads-step2" style="display:none;">
             <p style="font-size:13px; color:#2e7d32; font-weight:800; margin-bottom:10px;">
-                ✅ 密码验证成功！请输入添加珠子数量：
+                ✅ 密码验证成功！请输入目标账户和添加数量：
             </p>
+            <label class="field-label" for="add-beads-username">目标用户名</label>
+            <input type="text" id="add-beads-username" class="text-input-field" maxlength="20" placeholder="要加珠的账户用户名" />
+            <label class="field-label" for="add-beads-amount">添加珠子数量</label>
             <input type="number" id="add-beads-amount" class="text-input-field" value="100" min="1" max="99999" />
             
             <div class="quick-add-group">
@@ -369,19 +398,46 @@
             </div>
 
             <div class="settings-section-heading local-settings-heading">
-                <strong>当前机器数据</strong>
-                <span>不会影响其他机器</span>
+                <strong>当前账户数据</strong>
+                <span id="settings-current-account-hint">仅更新当前登录账户</span>
             </div>
 
-            <!-- 当前机器库存与积分 -->
             <div class="settings-value-grid">
                 <label>弹珠数量<input type="number" id="config-total-beads" min="0" max="999999999"></label>
                 <label>积分数量<input type="number" id="config-total-score" min="0" max="999999999"></label>
             </div>
+
+            <div class="settings-section-heading local-settings-heading">
+                <strong>按用户名管理账户</strong>
+                <span>查询后可修改任意账户的积分和弹珠</span>
+            </div>
+            <div class="admin-account-box">
+                <label class="field-label" for="admin-account-username">用户名</label>
+                <div class="admin-account-lookup">
+                    <input type="text" id="admin-account-username" class="text-input-field" maxlength="20" placeholder="输入要管理的用户名"
+                        onkeydown="if(event.key==='Enter') window.game.lookupAdminAccount()">
+                    <button type="button" class="btn-secondary-action" onclick="window.game.lookupAdminAccount()">查询</button>
+                </div>
+                <div id="admin-account-error" class="error-tip" style="display:none;"></div>
+                <div id="admin-account-editor" style="display:none;">
+                    <p class="admin-account-found" id="admin-account-found"></p>
+                    <div class="settings-value-grid">
+                        <label>弹珠数量<input type="number" id="admin-account-beads" min="0" max="999999999"></label>
+                        <label>积分数量<input type="number" id="admin-account-score" min="0" max="999999999"></label>
+                    </div>
+                    <div class="quick-add-group">
+                        <button type="button" class="quick-add-btn" onclick="window.game.adjustAdminAccountField('beads', 50)">珠+50</button>
+                        <button type="button" class="quick-add-btn" onclick="window.game.adjustAdminAccountField('beads', 100)">珠+100</button>
+                        <button type="button" class="quick-add-btn" onclick="window.game.adjustAdminAccountField('score', 1)">分+1</button>
+                        <button type="button" class="quick-add-btn" onclick="window.game.adjustAdminAccountField('score', 10)">分+10</button>
+                    </div>
+                    <button class="btn-primary-action" style="margin-top:12px;" onclick="window.game.saveAdminAccount()">保存到该账户</button>
+                </div>
+            </div>
         </div>
 
         <button class="btn-primary-action" style="margin-bottom:10px;" onclick="window.game.saveSettings()">保存并同步设置</button>
-        <button style="width:100%; padding:9px; background:#fff; border:1.5px solid #d32f2f; color:#d32f2f; border-radius:10px; font-weight:800; cursor:pointer;" onclick="window.game.resetData()">重置当前机器数据为 0</button>
+        <button style="width:100%; padding:9px; background:#fff; border:1.5px solid #d32f2f; color:#d32f2f; border-radius:10px; font-weight:800; cursor:pointer;" onclick="window.game.resetData()">重置当前账户数据为 0</button>
     </div>
 </div>
 
