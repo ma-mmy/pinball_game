@@ -103,10 +103,11 @@ button {
     border: 4px solid var(--cabinet-border);
     padding: 14px 14px 20px 14px;
     overflow: hidden;
-    transition: transform 0.05s ease;
 }
 
-.arcade-cabinet.shake {
+/* Shake chrome only. Transforming .arcade-cabinet (canvas ancestor + overflow)
+   flashes the playfield on mobile Safari/Chrome. */
+.arcade-cabinet.shake > :not(.playfield-container) {
     animation: machineShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
 }
 
@@ -1223,6 +1224,8 @@ input.text-input-field,
     border-radius: 3px;
     box-shadow: inset 0 2px 4px #000;
     margin-bottom: 4px;
+    transform: translateZ(0);
+    isolation: isolate;
 }
 
 .hopper-exit-chute.hopper-active {
@@ -1230,8 +1233,16 @@ input.text-input-field,
 }
 
 @keyframes hopperFeed {
-    from { transform: translateY(0) scaleX(1); filter: brightness(1); }
-    to { transform: translateY(2px) scaleX(1.08); filter: brightness(1.7); box-shadow: inset 0 2px 4px #000, 0 0 12px rgba(255, 82, 82, 0.85); }
+    from {
+        transform: translateZ(0) translateY(0) scaleX(1);
+        background: #25201b;
+        box-shadow: inset 0 2px 4px #000;
+    }
+    to {
+        transform: translateZ(0) translateY(2px) scaleX(1.08);
+        background: #5a4e38;
+        box-shadow: inset 0 2px 4px #000, 0 0 12px rgba(255, 82, 82, 0.85);
+    }
 }
 
 /* 猫脸造型物理接球托盘 */

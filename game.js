@@ -123,6 +123,8 @@ class PinballGame {
         this.pullStartY = 0;
         this.lastSoundPullDist = 0;
         this.plungerPulseTimer = null;
+        this.shakeTimer = null;
+        this.hopperActiveTimer = null;
         this.lastPinSoundAt = 0;
         this.lastBumperSoundAt = 0;
 
@@ -1732,13 +1734,7 @@ class PinballGame {
 
     shakeMachine() {
         window.soundEngine.playBtnClick();
-        const machine = document.querySelector('.arcade-cabinet');
-        if (machine) {
-            machine.classList.remove('shake');
-            void machine.offsetWidth;
-            machine.classList.add('shake');
-            setTimeout(() => machine.classList.remove('shake'), 450);
-        }
+        this.triggerScreenShake();
         this.physics.shakeActiveBall();
     }
 
@@ -2228,10 +2224,18 @@ class PinballGame {
     spawnTrayDrops(count) {
         const actualDropCount = Math.min(12, Math.max(3, Math.round(count / 3)));
         if (this.hopperExit) {
-            this.hopperExit.classList.remove('hopper-active');
-            void this.hopperExit.offsetWidth;
-            this.hopperExit.classList.add('hopper-active');
-            setTimeout(() => this.hopperExit && this.hopperExit.classList.remove('hopper-active'), actualDropCount * 110 + 700);
+            if (this.hopperActiveTimer) {
+                clearTimeout(this.hopperActiveTimer);
+                this.hopperActiveTimer = null;
+            }
+            // Avoid forced reflow (offsetWidth) — it flashes the playfield canvas on mobile.
+            if (!this.hopperExit.classList.contains('hopper-active')) {
+                this.hopperExit.classList.add('hopper-active');
+            }
+            this.hopperActiveTimer = setTimeout(() => {
+                if (this.hopperExit) this.hopperExit.classList.remove('hopper-active');
+                this.hopperActiveTimer = null;
+            }, actualDropCount * 110 + 700);
         }
         for (let i = 0; i < actualDropCount; i++) {
             setTimeout(() => {
@@ -2264,9 +2268,23 @@ class PinballGame {
 
     triggerScreenShake() {
         const machine = document.querySelector('.arcade-cabinet');
-        if (machine) {
+        if (!machine) return;
+        if (this.shakeTimer) {
+            clearTimeout(this.shakeTimer);
+            this.shakeTimer = null;
+        }
+        const startShake = () => {
             machine.classList.add('shake');
-            setTimeout(() => machine.classList.remove('shake'), 450);
+            this.shakeTimer = setTimeout(() => {
+                machine.classList.remove('shake');
+                this.shakeTimer = null;
+            }, 450);
+        };
+        if (machine.classList.contains('shake')) {
+            machine.classList.remove('shake');
+            requestAnimationFrame(startShake);
+        } else {
+            startShake();
         }
     }
 
