@@ -642,6 +642,12 @@ input.text-input-field,
     align-items: center;
     gap: 7px;
     pointer-events: none;
+    /* Own compositor layer so the canvas redraw does not punch through
+       and make the bar vanish/reappear on mobile. */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    isolation: isolate;
+    contain: layout style;
 }
 
 .fever-gauge-tag {
@@ -658,7 +664,8 @@ input.text-input-field,
 
 .fever-gauge-track {
     position: relative;
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
     height: 11px;
     background: #231e1a;
     border-radius: 6px;
@@ -673,42 +680,39 @@ input.text-input-field,
     border-radius: 5px;
     background: linear-gradient(90deg, #ff8a65, #ff1744 55%, #ffeb3b);
     box-shadow: 0 0 8px rgba(255, 23, 68, 0.55);
-    transition: width 0.12s linear;
+    /* Width transitions on a flex % child reflow from 0 on mobile, which
+       looks like the bar disappearing and redrawing. Jump to the new width. */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
 }
 
 .fever-gauge.is-hot .fever-gauge-fill {
-    animation: feverGaugeShine 0.7s linear infinite;
+    box-shadow: 0 0 10px rgba(255, 23, 68, 0.8);
 }
 
 .fever-gauge.is-active .fever-gauge-tag {
     background: linear-gradient(180deg, #ffeb3b, #ff6f00);
     color: #4a1c00;
-    animation: feverTagBlink 0.28s steps(2, end) infinite;
 }
 
 .fever-gauge.is-active .fever-gauge-fill {
-    background: linear-gradient(90deg, #ffeb3b, #ff1744, #ffeb3b);
-    background-size: 200% 100%;
-    animation: feverGaugeShine 0.45s linear infinite;
+    background: linear-gradient(90deg, #ffeb3b, #ff1744 55%, #ffeb3b);
 }
 
 @keyframes feverGaugeShine {
-    from { filter: brightness(1); background-position: 0% 0; }
-    to { filter: brightness(1.35); background-position: 100% 0; }
-}
-
-@keyframes feverTagBlink {
-    from { opacity: 1; }
-    to { opacity: 0.55; }
+    from { background-position: 0% 0; }
+    to { background-position: 100% 0; }
 }
 
 .fever-gauge-pct {
-    flex-shrink: 0;
-    min-width: 42px;
+    flex: 0 0 6.2ch;
+    width: 6.2ch;
+    min-width: 6.2ch;
     text-align: right;
     font-size: 10px;
     font-weight: 900;
     font-family: 'Courier New', Courier, monospace;
+    font-variant-numeric: tabular-nums;
     color: #d32f2f;
     text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
 }
@@ -867,12 +871,6 @@ input.text-input-field,
     border-radius: 12px;
     display: inline-block;
     box-shadow: 0 2px 5px rgba(0,0,0,0.06);
-    transition: transform 0.2s, color 0.2s;
-}
-
-#status-bar-text.highlight {
-    color: var(--accent-red);
-    transform: scale(1.08);
 }
 
 /* 下方控制台操作区 (Control Deck) */
@@ -1897,7 +1895,7 @@ input.text-input-field,
     .fever-banner { font-size: 32px; letter-spacing: 4px; }
     .fever-sub { font-size: 11px; }
     .fever-gauge-tag { font-size: 8px; padding: 1px 5px; }
-    .fever-gauge-pct { font-size: 9px; min-width: 36px; }
+    .fever-gauge-pct { font-size: 9px; }
     .control-deck { margin-top: 8px; padding: 0 2px; gap: 5px; }
     .paw-button-container { --paw-size: 54px; gap: 4px; }
     .paw-insert-cluster { gap: 3px; }

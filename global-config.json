@@ -1,14 +1,14 @@
 {
   "soundEnabled": true,
   "highElasticEnabled": true,
-  "configT": 30,
-  "configJ": 10,
+  "configT": 20,
+  "configJ": 8,
   "multiplierProbabilities": [
-    75,
-    10.6,
+    70,
+    15.6,
     5.7,
-    6,
-    2.7
+    5,
+    3.7
   ],
   "password": "ma123456"
 }

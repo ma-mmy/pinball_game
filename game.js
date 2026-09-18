@@ -75,6 +75,13 @@ class PinballGame {
         this.preFeverMultiplier = 0;
         this.pendingRoundReset = false;
         this.pendingFever = false;
+        this.feverGaugeEl = document.getElementById('fever-gauge');
+        this.feverFillEl = document.getElementById('fever-gauge-fill');
+        this.feverPctEl = document.getElementById('fever-gauge-pct');
+        this.feverTagEl = document.getElementById('fever-gauge-tag');
+        this._feverWidthPct = null;
+        this._feverLabel = null;
+        this._feverSaveTimer = null;
 
         // 猫咪拉霸：每中奖 10 次触发
         this.catSlotSymbols = [
@@ -476,9 +483,15 @@ class PinballGame {
 
     initAccountSystem() {
         this.updateAccountBar();
-        window.addEventListener('pagehide', () => this.persistCurrentAccount(true));
+        window.addEventListener('pagehide', () => {
+            this.flushFeverEnergySave();
+            this.persistCurrentAccount(true);
+        });
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') this.persistCurrentAccount(true);
+            if (document.visibilityState === 'hidden') {
+                this.flushFeverEnergySave();
+                this.persistCurrentAccount(true);
+            }
         });
         if (this.accountPollTimer) clearInterval(this.accountPollTimer);
         this.accountPollTimer = setInterval(() => this.pullCurrentAccount(), 5000);
@@ -840,13 +853,10 @@ class PinballGame {
         }
     }
 
-    setStatus(text, isHighlight = false) {
+    setStatus(text) {
         if (!this.statusTextEl) return;
         this.statusTextEl.textContent = text;
-        if (isHighlight) {
-            this.statusTextEl.classList.add('highlight');
-            setTimeout(() => this.statusTextEl.classList.remove('highlight'), 1200);
-        }
+        this.statusTextEl.classList.remove('highlight');
     }
 
     insertBalls(requestedCount = 1) {
@@ -2060,9 +2070,25 @@ class PinballGame {
         if (actual <= 0) return;
         this.feverRoundGain += actual;
         this.feverEnergy = Math.min(100, this.feverEnergy + actual);
-        localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
+        this.queueFeverEnergySave();
         this.updateFeverUI();
         if (this.feverEnergy >= 100) this.requestFever();
+    }
+
+    queueFeverEnergySave() {
+        if (this._feverSaveTimer) return;
+        this._feverSaveTimer = setTimeout(() => {
+            this._feverSaveTimer = null;
+            localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
+        }, 400);
+    }
+
+    flushFeverEnergySave() {
+        if (this._feverSaveTimer) {
+            clearTimeout(this._feverSaveTimer);
+            this._feverSaveTimer = null;
+        }
+        localStorage.setItem('hpb_fever_energy', String(this.feverEnergy));
     }
 
     shouldDeferFeverStart() {
@@ -2087,25 +2113,31 @@ class PinballGame {
     }
 
     updateFeverUI() {
-        const gauge = document.getElementById('fever-gauge');
-        const fill = document.getElementById('fever-gauge-fill');
-        const pct = document.getElementById('fever-gauge-pct');
-        const tag = document.getElementById('fever-gauge-tag');
+        const gauge = this.feverGaugeEl;
+        const fill = this.feverFillEl;
+        const pct = this.feverPctEl;
+        const tag = this.feverTagEl;
         if (!gauge || !fill || !pct) return;
 
-        gauge.classList.toggle('is-active', this.feverActive);
-        gauge.classList.toggle('is-hot', !this.feverActive && this.feverEnergy >= 80);
+        const active = this.feverActive;
+        gauge.classList.toggle('is-active', active);
+        gauge.classList.toggle('is-hot', !active && this.feverEnergy >= 80);
 
-        if (this.feverActive) {
-            const remain = Math.max(0, this.feverTimeLeft);
-            fill.style.width = `${(remain / this.feverDuration) * 100}%`;
-            pct.textContent = `${remain.toFixed(1)}s`;
-            if (tag) tag.textContent = 'FEVER';
-        } else {
-            fill.style.width = `${this.feverEnergy}%`;
-            pct.textContent = `${this.feverEnergy.toFixed(1)}%`;
-            if (tag) tag.textContent = 'FEVER';
+        const remain = Math.max(0, this.feverTimeLeft);
+        const widthPct = active
+            ? ((remain / this.feverDuration) * 100).toFixed(1)
+            : this.feverEnergy.toFixed(1);
+        const label = active ? `${remain.toFixed(1)}s` : `${widthPct}%`;
+
+        if (this._feverWidthPct !== widthPct) {
+            this._feverWidthPct = widthPct;
+            fill.style.width = `${widthPct}%`;
         }
+        if (this._feverLabel !== label) {
+            this._feverLabel = label;
+            pct.textContent = label;
+        }
+        if (tag && tag.textContent !== 'FEVER') tag.textContent = 'FEVER';
     }
 
     startFever() {
@@ -2114,7 +2146,7 @@ class PinballGame {
         this.pendingFever = false;
         this.feverActive = true;
         this.feverEnergy = 0;
-        localStorage.setItem('hpb_fever_energy', '0');
+        this.flushFeverEnergySave();
         this.feverTimeLeft = this.feverDuration;
         this.feverSpawnTotal = 10 + Math.floor(Math.random() * 6);
         this.feverSpawned = 0;
@@ -2648,7 +2680,7 @@ class PinballGame {
             this.pendingFever = false;
             this.feverEnergy = 0;
             this.feverRoundGain = 0;
-            localStorage.setItem('hpb_fever_energy', '0');
+            this.flushFeverEnergySave();
             this.updateFeverUI();
             this.slotWinCount = 0;
             this.pendingCatSlot = false;
